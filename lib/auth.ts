@@ -150,17 +150,18 @@ export function verifySessionToken(token: string | undefined | null): AdminSessi
 
 export function mintBackendAdminJwt(session: AdminSession): string | null {
   const jwtSecret = process.env.JWT_ACCESS_SECRET;
-  if (!jwtSecret || !session.dbUserId) return null;
+  if (!jwtSecret) return null;
   const now = Math.floor(Date.now() / 1000);
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' }), 'utf8').toString(
     'base64url'
   );
   const payload = Buffer.from(
     JSON.stringify({
-      sub: session.dbUserId,
+      sub: session.dbUserId || 'ADM-ALLOWLIST',
       accountId: session.accountId,
       phone: session.phone,
       role: 'admin',
+      adminBridge: true,
       iat: now,
       exp: now + 300,
     }),

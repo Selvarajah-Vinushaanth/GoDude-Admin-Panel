@@ -345,52 +345,91 @@ export async function reviewRiderAction(
     return { ok: true };
   }
 
-  return withTransaction(async (client) => {
-    if (payload.action === 'approve') {
-      await client.query(
-        `UPDATE drivers
-         SET is_verified = TRUE, vehicle_approved = TRUE,
-             driver_state = CASE WHEN driver_state = 'UNAVAILABLE' AND is_online THEN 'AVAILABLE' WHEN NOT is_online THEN 'OFFLINE' ELSE driver_state END,
-             updated_at = NOW()
-         WHERE id = $1`,
-        [driverId]
-      );
-      await insertNotification(
-        {
-          userId: existing.user_id,
-          roleTarget: 'driver',
-          eventType: 'driver_verification_approved',
-          title: 'Rider Verification Approved',
-          body:
-            payload.reason?.trim() ||
-            `Your vehicle (${existing.plate_number}) and driver verification have been approved. You can now go online and accept rides & deliveries.`,
-          data: { driverId, plateNumber: existing.plate_number, approved: true },
-        },
-        client
-      );
-    } else if (payload.action === 'reject') {
-      if (!payload.reason?.trim()) {
-        throw new Error('Rejection reason is required.');
+  if (payload.action === 'approve' || payload.action === 'reject') {
+    if (payload.action === 'reject' && !payload.reason?.trim()) {
+      throw new Error('Rejection reason is required.');
+    }
+
+    const approvalStatus = payload.action === 'approve' ? 'approved' : 'rejected';
+    const apiRes = await callGoDudeAdminApi(session, `/drivers/${driverId}/approval`, {
+      method: 'PATCH',
+      body: {
+        approvalStatus,
+        reason: payload.reason?.trim() || undefined,
+      },
+    });
+    if (apiRes.reached && !apiRes.ok) {
+      throw new Error(apiRes.error || 'Backend rejected rider approval update');
+    }
+
+    return withTransaction(async (client) => {
+      if (!apiRes.reached) {
+        if (payload.action === 'approve') {
+          await client.query(
+            `UPDATE drivers
+             SET is_verified = TRUE, vehicle_approved = TRUE,
+                 driver_state = CASE WHEN driver_state = 'UNAVAILABLE' AND is_online THEN 'AVAILABLE' WHEN driver_state = 'UNAVAILABLE' AND NOT is_online THEN 'OFFLINE' ELSE driver_state END,
+                 updated_at = NOW()
+             WHERE id = $1`,
+            [driverId]
+          );
+        } else {
+          await client.query(
+            `UPDATE drivers
+             SET is_verified = FALSE, vehicle_approved = FALSE, is_online = FALSE,
+                 is_available = FALSE, driver_state = 'UNAVAILABLE', updated_at = NOW(), last_state_changed_at = NOW()
+             WHERE id = $1`,
+            [driverId]
+          );
+        }
       }
-      await client.query(
-        `UPDATE drivers
-         SET is_verified = FALSE, vehicle_approved = FALSE, is_online = FALSE,
-             is_available = FALSE, driver_state = 'UNAVAILABLE', updated_at = NOW(), last_state_changed_at = NOW()
-         WHERE id = $1`,
-        [driverId]
-      );
-      await insertNotification(
+
+      if (payload.action === 'approve') {
+        await insertNotification(
+          {
+            userId: existing.user_id,
+            roleTarget: 'driver',
+            eventType: 'driver_verification_approved',
+            title: 'Rider Verification Approved',
+            body:
+              payload.reason?.trim() ||
+              `Your vehicle (${existing.plate_number}) and driver verification have been approved. You can now go online and accept rides & deliveries.`,
+            data: { driverId, plateNumber: existing.plate_number, approved: true },
+          },
+          client
+        );
+      } else {
+        await insertNotification(
+          {
+            userId: existing.user_id,
+            roleTarget: 'driver',
+            eventType: 'driver_verification_rejected',
+            title: 'Rider Verification Requires Action',
+            body: payload.reason!.trim(),
+            data: { driverId, plateNumber: existing.plate_number, approved: false },
+          },
+          client
+        );
+      }
+
+      await recordAuditLog(
         {
-          userId: existing.user_id,
-          roleTarget: 'driver',
-          eventType: 'driver_verification_rejected',
-          title: 'Rider Verification Requires Action',
-          body: payload.reason.trim(),
-          data: { driverId, plateNumber: existing.plate_number, approved: false },
+          adminUserId: session.dbUserId,
+          action: `driver_${payload.action}`,
+          targetType: 'driver',
+          targetId: driverId,
+          reason: payload.reason?.trim() || '',
+          details: { approvalStatus, backendSynced: apiRes.ok },
         },
         client
       );
-    } else if (payload.action === 'request_info') {
+
+      return { ok: true, backendSynced: apiRes.ok };
+    });
+  }
+
+  return withTransaction(async (client) => {
+    if (payload.action === 'request_info') {
       if (!payload.reason?.trim()) {
         throw new Error('Instruction message is required.');
       }

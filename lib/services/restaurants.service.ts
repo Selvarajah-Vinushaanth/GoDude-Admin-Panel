@@ -272,7 +272,11 @@ export async function reviewRestaurantAction(
       await client.query(
         `UPDATE restaurants
          SET approval_status = $2,
-             rejection_reason = CASE WHEN $3 <> '' THEN $3 ELSE rejection_reason END,
+             rejection_reason = CASE
+               WHEN $3 <> '' THEN $3
+               WHEN $2 = 'approved' THEN NULL
+               ELSE rejection_reason
+             END,
              commission_pct = COALESCE($4, commission_pct),
              is_open = CASE WHEN $2 IN ('rejected', 'suspended') THEN FALSE ELSE is_open END,
              store_status = CASE WHEN $2 IN ('rejected', 'suspended') THEN 'CLOSED' ELSE store_status END,

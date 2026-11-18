@@ -419,41 +419,43 @@ export function RidersClient({ initialStatus = 'all' }: { initialStatus?: string
                   <MessageSquare className="h-3.5 w-3.5" /> Send Feedback
                 </button>
 
-                {detail.rider.driver_state === 'UNAVAILABLE' ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setActionDialog({
-                        action: 'restore_available',
-                        title: 'Restore Rider Availability',
-                        description: 'Mark this verified rider Available for incoming dispatches.',
-                        confirmLabel: 'Restore Available',
-                        tone: 'success',
-                        requireReason: false,
-                      })
-                    }
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
-                  >
-                    <ShieldCheck className="h-3.5 w-3.5" /> Restore Available
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setActionDialog({
-                        action: 'suspend',
-                        title: 'Suspend / Take Rider Unavailable',
-                        description:
-                          'Sets rider offline/UNAVAILABLE unless an active trip lock is held.',
-                        confirmLabel: 'Suspend Rider',
-                        tone: 'warning',
-                        requireReason: true,
-                      })
-                    }
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
-                  >
-                    <PowerOff className="h-3.5 w-3.5" /> Suspend
-                  </button>
+                {detail.rider.is_verified && detail.rider.vehicle_approved && (
+                  detail.rider.driver_state === 'UNAVAILABLE' ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActionDialog({
+                          action: 'restore_available',
+                          title: 'Restore Rider Availability',
+                          description: 'Mark this verified rider Available for incoming dispatches.',
+                          confirmLabel: 'Restore Available',
+                          tone: 'success',
+                          requireReason: false,
+                        })
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" /> Restore Available
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setActionDialog({
+                          action: 'suspend',
+                          title: 'Suspend / Take Rider Unavailable',
+                          description:
+                            'Sets rider offline/UNAVAILABLE unless an active trip lock is held.',
+                          confirmLabel: 'Suspend Rider',
+                          tone: 'warning',
+                          requireReason: true,
+                        })
+                      }
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 hover:bg-amber-100"
+                    >
+                      <PowerOff className="h-3.5 w-3.5" /> Suspend
+                    </button>
+                  )
                 )}
 
                 <button
