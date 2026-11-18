@@ -206,7 +206,7 @@ export function NotificationsClient() {
               Send Administrative Instruction
             </h2>
             <p className="text-xs text-slate-500">
-              Writes directly to GoDude notifications infrastructure
+              Send operational notices to restaurant owners, riders & customers
             </p>
           </div>
         </div>

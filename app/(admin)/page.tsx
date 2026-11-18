@@ -10,29 +10,24 @@ import {
   ArrowUpRight,
   AlertCircle,
   Activity,
-  Server,
 } from 'lucide-react';
 import { ServiceTrendsChart } from '@/components/Charts';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatDateTime, formatLKR, formatNumber } from '@/lib/format';
-import { checkGoDudeBackendHealth } from '@/lib/godude-api';
 import { getOverviewStats } from '@/lib/services/overview.service';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const [overviewRes, vmHealth] = await Promise.all([
-    getOverviewStats()
-      .then((stats) => ({ ok: true as const, stats }))
-      .catch((err) => ({
-        ok: false as const,
-        error:
-          err instanceof Error
-            ? err.message
-            : 'Unable to connect to GoDude Google Cloud VM database.',
-      })),
-    checkGoDudeBackendHealth(),
-  ]);
+  const overviewRes = await getOverviewStats()
+    .then((stats) => ({ ok: true as const, stats }))
+    .catch((err) => ({
+      ok: false as const,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Unable to connect to GoDude Google Cloud VM database.',
+    }));
 
   if (!overviewRes.ok) {
     return (
@@ -139,36 +134,6 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Live Infrastructure Status Bar */}
-      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3 text-xs shadow-2xs">
-        <div className="flex items-center gap-2.5">
-          <Server className="h-4 w-4 text-blue-600" />
-          <span className="font-semibold text-slate-900">GoDude Google Cloud VM Source:</span>
-          <span className="font-mono text-slate-600">
-            {vmHealth.url || 'GODUDE_API_URL unset'}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-semibold ring-1 ring-inset ${
-              vmHealth.reachable
-                ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
-                : 'bg-rose-50 text-rose-700 ring-rose-600/20'
-            }`}
-          >
-            API: {vmHealth.reachable ? 'Online' : 'Unreachable'}
-          </span>
-          <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
-            PostgreSQL: Connected (Live Queries)
-          </span>
-          {vmHealth.reachable && (
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 font-semibold text-slate-700">
-              Redis: {vmHealth.redis}
-            </span>
-          )}
-        </div>
-      </section>
-
       {/* Top KPI Cards */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {topCards.map((card) => {
@@ -284,7 +249,7 @@ export default async function DashboardPage() {
               <h3 className="text-sm font-semibold text-slate-900">
                 Unified Fleet State Summary
               </h3>
-              <p className="text-xs text-slate-500">Live driver_state distribution</p>
+              <p className="text-xs text-slate-500">Real-time rider availability across services</p>
             </div>
             <Activity className="h-4 w-4 text-blue-600" />
           </div>
@@ -332,9 +297,9 @@ export default async function DashboardPage() {
               </p>
             </div>
             <div className="rounded-xl bg-slate-50 p-2.5">
-              <p className="text-slate-500">Suspended Kitchens</p>
+              <p className="text-slate-500">Online / Available</p>
               <p className="mt-0.5 font-bold text-slate-900">
-                {kpis.suspendedRestaurants} suspended / {kpis.rejectedRestaurants} rejected
+                {kpis.onlineRiders} online / {kpis.availableRiders} ready
               </p>
             </div>
           </div>

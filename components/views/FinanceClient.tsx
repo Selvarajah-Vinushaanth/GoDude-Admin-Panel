@@ -375,11 +375,25 @@ export function FinanceClient() {
 
             <div className="rounded-2xl border border-slate-200 p-4">
               <p className="font-semibold uppercase tracking-wider text-slate-400">
-                Gateway Payload Metadata
+                Gateway Details
               </p>
-              <pre className="mt-2 overflow-x-auto rounded-xl bg-slate-50 p-3 font-mono text-[11px] text-slate-700">
-                {JSON.stringify(detail.raw_payload || {}, null, 2)}
-              </pre>
+              {detail.raw_payload && Object.keys(detail.raw_payload).length > 0 ? (
+                <dl className="mt-2.5 space-y-1.5">
+                  {Object.entries(detail.raw_payload).map(([key, value]) => (
+                    <div
+                      key={key}
+                      className="flex justify-between gap-4 border-b border-slate-100 pb-1 last:border-0 last:pb-0"
+                    >
+                      <dt className="text-slate-500">{key}</dt>
+                      <dd className="text-right font-mono text-slate-900">
+                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="mt-2 text-slate-500">No additional gateway metadata recorded.</p>
+              )}
             </div>
           </div>
         )}

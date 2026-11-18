@@ -122,7 +122,7 @@ export function SettingsClient() {
         <div className="flex items-center gap-2">
           <Car className="h-4 w-4 text-blue-600" />
           <h2 className="text-sm font-semibold text-slate-900">
-            Vehicle Pricing Tiers (vehicle_types)
+            Vehicle Pricing Tiers
           </h2>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -426,7 +426,7 @@ export function SettingsClient() {
         <div className="flex items-center gap-2">
           <ClipboardList className="h-4 w-4 text-slate-600" />
           <h2 className="text-sm font-semibold text-slate-900">
-            Administrative Audit Trail (admin_audit_logs)
+            Administrative Audit Trail
           </h2>
         </div>
         <div className="mt-3 overflow-x-auto">
