@@ -10,16 +10,57 @@ import {
   ArrowUpRight,
   AlertCircle,
   Activity,
+  Server,
 } from 'lucide-react';
 import { ServiceTrendsChart } from '@/components/Charts';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { formatDateTime, formatLKR, formatNumber } from '@/lib/format';
+import { checkGoDudeBackendHealth } from '@/lib/godude-api';
 import { getOverviewStats } from '@/lib/services/overview.service';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
-  const stats = await getOverviewStats();
+  const [overviewRes, vmHealth] = await Promise.all([
+    getOverviewStats()
+      .then((stats) => ({ ok: true as const, stats }))
+      .catch((err) => ({
+        ok: false as const,
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Unable to connect to GoDude Google Cloud VM database.',
+      })),
+    checkGoDudeBackendHealth(),
+  ]);
+
+  if (!overviewRes.ok) {
+    return (
+      <div className="rounded-2xl border border-rose-200 bg-white p-8 shadow-sm">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="mt-0.5 h-6 w-6 shrink-0 text-rose-600" />
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              Unable to connect to GoDude backend / database
+            </h2>
+            <p className="mt-1 text-sm text-rose-700">{overviewRes.error}</p>
+            <p className="mt-2 text-xs text-slate-500">
+              Ensure the SSH database tunnel to <code className="font-mono">godude-prod-vm</code>{' '}
+              (or <code className="font-mono">DATABASE_URL</code>) is active and reload this page.
+            </p>
+            <Link
+              href="/"
+              className="mt-4 inline-flex items-center rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"
+            >
+              Retry Connection
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const { stats } = overviewRes;
   const { kpis } = stats;
 
   const topCards = [
@@ -98,6 +139,36 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Live Infrastructure Status Bar */}
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white px-4 py-3 text-xs shadow-2xs">
+        <div className="flex items-center gap-2.5">
+          <Server className="h-4 w-4 text-blue-600" />
+          <span className="font-semibold text-slate-900">GoDude Google Cloud VM Source:</span>
+          <span className="font-mono text-slate-600">
+            {vmHealth.url || 'GODUDE_API_URL unset'}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 font-semibold ring-1 ring-inset ${
+              vmHealth.reachable
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+                : 'bg-rose-50 text-rose-700 ring-rose-600/20'
+            }`}
+          >
+            API: {vmHealth.reachable ? 'Online' : 'Unreachable'}
+          </span>
+          <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20">
+            PostgreSQL: Connected (Live Queries)
+          </span>
+          {vmHealth.reachable && (
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 font-semibold text-slate-700">
+              Redis: {vmHealth.redis}
+            </span>
+          )}
+        </div>
+      </section>
+
       {/* Top KPI Cards */}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {topCards.map((card) => {

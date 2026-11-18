@@ -68,9 +68,22 @@ godude-admin-panel/
 
 ---
 
-## Database & Backend Connectivity
+## Google Cloud VM Database & Backend Connectivity
 
-`godude-admin-panel` connects directly to the **existing** GoDude PostgreSQL + PostGIS database (`DATABASE_URL`) without creating duplicate databases or altering existing tables. Administrative mutations also bridge to the existing GoDude backend API (`GODUDE_API_URL`) using a short-lived admin JWT signed with `JWT_ACCESS_SECRET` so Socket.IO real-time events (`catalog:updated`, dispatch updates) stay synchronized with customer and partner apps.
+`godude-admin-panel` connects directly to the **production GoDude Google Cloud VM (`godude-prod-vm`)** PostgreSQL/PostGIS database (`DATABASE_URL`) and Backend API (`GODUDE_API_URL=https://api.godude.rodeo`) without creating duplicate databases or altering existing tables.
+
+- **Remote / Local Development (Encrypted SSH Tunnel to VM):**
+  On `godude-prod-vm`, PostgreSQL (`5432`) is bound strictly to `127.0.0.1` for firewall security. Open the encrypted tunnel before running the admin panel locally:
+  ```bash
+  ./scripts/tunnel-vm-db.sh
+  ```
+  Then point `DATABASE_URL` in `.env` to `127.0.0.1:15432`.
+
+- **On-VM Production Hosting:**
+  When deployed directly alongside GoDude on `godude-prod-vm`, set `DATABASE_URL` to `postgres://godude:<password>@127.0.0.1:5432/godude` and `GODUDE_API_URL=https://api.godude.rodeo` (or `http://127.0.0.1:4000`).
+
+- **Zero Fake Fallbacks:**
+  If the VM backend or PostgreSQL tunnel is unreachable, the admin panel displays an explicit error banner and retry prompt — it never substitutes mock data or fabricated counts.
 
 ---
 
@@ -91,7 +104,12 @@ godude-admin-panel/
    ```
    Fill in `DATABASE_URL`, `ADMIN_SESSION_SECRET`, `JWT_ACCESS_SECRET`, `GODUDE_API_URL`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD_HASH` inside `.env`.
 
-3. **Run development server:**
+3. **Open the Google Cloud VM DB tunnel (if running outside the VM):**
+   ```bash
+   ./scripts/tunnel-vm-db.sh
+   ```
+
+4. **Run development server:**
    ```bash
    npm run dev
    ```

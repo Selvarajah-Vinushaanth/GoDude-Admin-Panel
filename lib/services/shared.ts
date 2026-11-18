@@ -3,7 +3,8 @@ import { query } from '../db';
 
 export async function recordAuditLog(
   params: {
-    adminUserId: string;
+    adminUserId: string | null;
+    adminEmail?: string;
     action: string;
     targetType: string;
     targetId: string;
@@ -23,7 +24,10 @@ export async function recordAuditLog(
         params.targetType,
         params.targetId,
         params.reason ?? '',
-        JSON.stringify(params.details ?? {}),
+        JSON.stringify({
+          ...(params.adminEmail ? { adminEmail: params.adminEmail } : {}),
+          ...(params.details ?? {}),
+        }),
       ]
     );
   } catch (err) {

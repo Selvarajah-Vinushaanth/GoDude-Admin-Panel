@@ -8,6 +8,58 @@ export interface BackendCallResult<T = unknown> {
   error?: string;
 }
 
+export interface GoDudeBackendHealth {
+  reachable: boolean;
+  url: string;
+  status: string;
+  postgres: string;
+  redis: string;
+  error?: string;
+}
+
+export async function checkGoDudeBackendHealth(): Promise<GoDudeBackendHealth> {
+  const baseUrl = (process.env.GODUDE_API_URL || '').trim().replace(/\/$/, '');
+  if (!baseUrl) {
+    return {
+      reachable: false,
+      url: '',
+      status: 'unconfigured',
+      postgres: 'unknown',
+      redis: 'unknown',
+      error: 'GODUDE_API_URL not set',
+    };
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 4500);
+  try {
+    const res = await fetch(`${baseUrl}/health`, {
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    const json = (await res.json().catch(() => ({}))) as Record<string, string>;
+    return {
+      reachable: res.ok,
+      url: baseUrl,
+      status: json.status || (res.ok ? 'ok' : `HTTP ${res.status}`),
+      postgres: json.postgres || 'unknown',
+      redis: json.redis || 'unknown',
+      error: res.ok ? undefined : json.error || `Backend returned ${res.status}`,
+    };
+  } catch (err) {
+    return {
+      reachable: false,
+      url: baseUrl,
+      status: 'unreachable',
+      postgres: 'unknown',
+      redis: 'unknown',
+      error: err instanceof Error ? err.message : 'Unable to reach GoDude backend',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function callGoDudeAdminApi<T = unknown>(
   session: AdminSession,
   path: string,

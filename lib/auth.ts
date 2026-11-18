@@ -11,7 +11,7 @@ export interface AdminSession {
   email: string;
   fullName: string;
   accountId: string;
-  dbUserId: string;
+  dbUserId: string | null;
   phone: string;
   role: 'admin';
   exp: number;
@@ -134,7 +134,7 @@ export function verifySessionToken(token: string | undefined | null): AdminSessi
       !parsed ||
       parsed.role !== 'admin' ||
       typeof parsed.email !== 'string' ||
-      typeof parsed.dbUserId !== 'string' ||
+      (parsed.dbUserId !== null && typeof parsed.dbUserId !== 'string') ||
       typeof parsed.exp !== 'number'
     ) {
       return null;
@@ -150,7 +150,7 @@ export function verifySessionToken(token: string | undefined | null): AdminSessi
 
 export function mintBackendAdminJwt(session: AdminSession): string | null {
   const jwtSecret = process.env.JWT_ACCESS_SECRET;
-  if (!jwtSecret) return null;
+  if (!jwtSecret || !session.dbUserId) return null;
   const now = Math.floor(Date.now() / 1000);
   const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' }), 'utf8').toString(
     'base64url'
@@ -222,22 +222,15 @@ export async function authenticateAdminLogin(
     [identifier]
   );
 
-  const dbAdmin = adminUserRes.rows[0];
-  if (!dbAdmin) {
-    return {
-      ok: false,
-      status: 403,
-      error: 'No authorized administrator record exists in the GoDude database.',
-    };
-  }
+  const dbAdmin = adminUserRes.rows[0] ?? null;
 
   const exp = Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS;
   const session: AdminSession = {
     email: matched.email,
-    fullName: matched.fullName || dbAdmin.full_name,
-    accountId: dbAdmin.account_id,
-    dbUserId: dbAdmin.id,
-    phone: dbAdmin.phone || '',
+    fullName: matched.fullName || dbAdmin?.full_name || 'GoDude Operations Admin',
+    accountId: dbAdmin?.account_id || 'ADM-ALLOWLIST',
+    dbUserId: dbAdmin?.id ?? null,
+    phone: dbAdmin?.phone || '',
     role: 'admin',
     exp,
   };

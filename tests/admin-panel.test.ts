@@ -10,6 +10,7 @@ import {
   verifySessionToken,
 } from '../lib/auth';
 import { getPool, query } from '../lib/db';
+import { checkGoDudeBackendHealth } from '../lib/godude-api';
 import { getOverviewStats } from '../lib/services/overview.service';
 import { listCustomers } from '../lib/services/customers.service';
 import { listRiders } from '../lib/services/riders.service';
@@ -80,15 +81,20 @@ test('session token signing rejects tampered or expired tokens', () => {
   assert.ok(backendJwt && backendJwt.split('.').length === 3);
 });
 
-test('database connectivity & executive overview returns real GoDude platform metrics', async () => {
-  const res = await query<{ ok: number }>('SELECT 1 AS ok');
+test('database connectivity, Google Cloud VM health, & executive overview return real GoDude metrics', async () => {
+  const [res, vmHealth] = await Promise.all([
+    query<{ ok: number }>('SELECT 1 AS ok'),
+    checkGoDudeBackendHealth(),
+  ]);
   assert.equal(res.rows[0]?.ok, 1);
+  assert.equal(vmHealth.reachable, true, `Expected live VM backend reachable at ${vmHealth.url}`);
+  assert.equal(vmHealth.postgres, 'connected');
 
   const stats = await getOverviewStats();
-  assert.ok(stats.kpis.totalCustomers > 0, 'Expected real customers in GoDude DB');
-  assert.ok(stats.kpis.totalRiders > 0, 'Expected real riders in GoDude DB');
-  assert.ok(stats.kpis.totalRestaurants > 0, 'Expected real restaurants in GoDude DB');
-  assert.ok(stats.kpis.totalTransactions > 0, 'Expected real transactions in GoDude DB');
+  assert.ok(stats.kpis.totalCustomers > 0, 'Expected real customers in GoDude VM DB');
+  assert.ok(stats.kpis.totalRiders > 0, 'Expected real riders in GoDude VM DB');
+  assert.ok(stats.kpis.totalRestaurants > 0, 'Expected real restaurants in GoDude VM DB');
+  assert.ok(stats.kpis.totalTransactions > 0, 'Expected real transactions in GoDude VM DB');
   assert.equal(stats.dailyTrends.length, 14);
 });
 

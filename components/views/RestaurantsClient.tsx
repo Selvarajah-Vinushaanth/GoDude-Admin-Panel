@@ -140,7 +140,7 @@ export function RestaurantsClient({
   const [detailTab, setDetailTab] = useState<'application' | 'menu' | 'orders' | 'history'>('application');
 
   const [reviewAction, setReviewAction] = useState<ReviewActionState>(null);
-  const [commissionPct, setCommissionPct] = useState('15');
+  const [commissionPct, setCommissionPct] = useState('');
   const [actionBusy, setActionBusy] = useState(false);
 
   const fetchList = useCallback(async () => {
@@ -183,7 +183,9 @@ export function RestaurantsClient({
         const json = await res.json();
         if (!res.ok) throw new Error(json.error || 'Failed to load restaurant');
         setDetail(json);
-        setCommissionPct(String(json.restaurant?.commission_pct ?? 15));
+        setCommissionPct(
+          json.restaurant?.commission_pct != null ? String(json.restaurant.commission_pct) : ''
+        );
       } catch (err) {
         pushToast('Error', err instanceof Error ? err.message : 'Could not load restaurant', 'error');
         setSelectedId(null);
@@ -206,7 +208,8 @@ export function RestaurantsClient({
     if (!selectedId || !reviewAction) return;
     setActionBusy(true);
     try {
-      const comm = Number(commissionPct);
+      const trimmedComm = commissionPct.trim();
+      const comm = trimmedComm !== '' ? Number(trimmedComm) : NaN;
       const res = await fetch(`/api/restaurants/${selectedId}/review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
