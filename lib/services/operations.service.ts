@@ -78,10 +78,16 @@ export async function listRides(params: {
 
   const listValues = [...values, params.pageSize, offset];
   const rowsRes = await query(
-    `SELECT b.id, b.service_type, b.booking_mode, b.title, b.subtitle, b.status,
+    `SELECT b.id, b.service_type, b.booking_mode, COALESCE(b.trip_type, 'one_way') AS trip_type,
+            b.title, b.subtitle, b.status,
             b.vehicle_type, b.payment_method, b.payment_status,
             b.pickup_address, b.destination_address,
+            b.return_pickup_address, b.return_destination_address, b.return_scheduled_at::text,
             b.estimated_distance_km::float8 AS distance_km,
+            COALESCE(b.outbound_distance_km, b.estimated_distance_km)::float8 AS outbound_distance_km,
+            COALESCE(b.return_distance_km, 0)::float8 AS return_distance_km,
+            COALESCE(b.outbound_fare_lkr, b.total_paid_lkr) AS outbound_fare_lkr,
+            COALESCE(b.return_fare_lkr, 0) AS return_fare_lkr,
             b.total_paid_lkr, b.rider_earnings_lkr, b.platform_commission_lkr,
             b.created_at::text, b.started_at::text, b.completed_at::text,
             c.id AS customer_id, c.account_id AS customer_account_id, c.full_name AS customer_name, c.phone AS customer_phone,
@@ -186,7 +192,9 @@ export async function listFoodOrders(params: {
   const rowsRes = await query(
     `SELECT b.id, b.status, b.progress_step, b.title, b.subtitle,
             b.payment_method, b.payment_status, b.destination_address,
-            b.subtotal_lkr, b.delivery_or_service_fee_lkr, b.discount_lkr,
+            b.subtotal_lkr, b.delivery_or_service_fee_lkr,
+            COALESCE(b.service_fee_lkr, ROUND(COALESCE(b.delivery_or_service_fee_lkr, 0) * 0.10)::int) AS service_fee_lkr,
+            b.discount_lkr,
             b.total_paid_lkr, b.estimated_prep_mins, b.items_summary,
             b.created_at::text, b.completed_at::text,
             c.id AS customer_id, c.account_id AS customer_account_id, c.full_name AS customer_name, c.phone AS customer_phone,

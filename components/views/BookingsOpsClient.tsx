@@ -23,6 +23,7 @@ interface BookingListRow {
   id: string;
   service_type?: string;
   booking_mode?: string;
+  trip_type?: 'one_way' | 'return';
   title: string;
   subtitle?: string;
   status: string;
@@ -31,7 +32,14 @@ interface BookingListRow {
   payment_status: string;
   pickup_address?: string;
   destination_address: string;
+  return_pickup_address?: string | null;
+  return_destination_address?: string | null;
+  return_scheduled_at?: string | null;
   distance_km?: number;
+  outbound_distance_km?: number;
+  return_distance_km?: number;
+  outbound_fare_lkr?: number;
+  return_fare_lkr?: number;
   total_paid_lkr: number;
   rider_earnings_lkr?: number;
   platform_commission_lkr?: number;
@@ -299,7 +307,14 @@ export function BookingsOpsClient({
       header: 'Booking ID',
       render: (r) => (
         <div>
-          <p className="font-mono text-xs font-semibold text-slate-900">{r.id}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="font-mono text-xs font-semibold text-slate-900">{r.id}</p>
+            {r.trip_type === 'return' && (
+              <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800">
+                ⇄ Return Trip
+              </span>
+            )}
+          </div>
           <p className="text-[11px] text-slate-500">
             {mode === 'rides'
               ? `${r.service_type} (${r.booking_mode})`
@@ -567,6 +582,22 @@ export function BookingsOpsClient({
                   {detail.booking.destination_address}
                 </span>
               </div>
+              {detail.booking.trip_type === 'return' && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5 text-blue-900">
+                  <p className="font-bold">⇄ Return Trip Journey</p>
+                  <p className="mt-1">
+                    Return Leg:{' '}
+                    {detail.booking.return_pickup_address || detail.booking.destination_address} →{' '}
+                    {detail.booking.return_destination_address || detail.booking.pickup_address}
+                  </p>
+                  <p className="text-[11px] text-blue-700">
+                    Outbound: {detail.booking.outbound_distance_km ?? detail.booking.estimated_distance_km} km (
+                    {formatLKR(detail.booking.outbound_fare_lkr ?? 0)}) · Return:{' '}
+                    {detail.booking.return_distance_km ?? 0} km (
+                    {formatLKR(detail.booking.return_fare_lkr ?? 0)})
+                  </p>
+                </div>
+              )}
               <div className="flex flex-wrap gap-4 border-t border-slate-100 pt-2 text-slate-500">
                 <span>Est. Distance: {detail.booking.estimated_distance_km} km</span>
                 <span>GPS Distance: {detail.booking.actual_distance_km} km</span>
@@ -691,17 +722,30 @@ export function BookingsOpsClient({
               </p>
               <div className="mt-3 space-y-1.5">
                 <div className="flex justify-between text-slate-600">
-                  <span>Subtotal</span>
+                  <span>{mode === 'food' ? 'Food Subtotal' : 'Subtotal'}</span>
                   <span>{formatLKR(detail.booking.subtotal_lkr)}</span>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Delivery / Service Fee</span>
-                  <span>
-                    {formatLKR(
-                      detail.booking.delivery_or_service_fee_lkr + detail.booking.service_fee_lkr
-                    )}
-                  </span>
-                </div>
+                {mode === 'food' ? (
+                  <>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Delivery Fee</span>
+                      <span>{formatLKR(detail.booking.delivery_or_service_fee_lkr)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Service Fee (10% of Delivery Fee)</span>
+                      <span>{formatLKR(detail.booking.service_fee_lkr)}</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between text-slate-600">
+                    <span>Delivery / Service Fee</span>
+                    <span>
+                      {formatLKR(
+                        detail.booking.delivery_or_service_fee_lkr + detail.booking.service_fee_lkr
+                      )}
+                    </span>
+                  </div>
+                )}
                 {detail.booking.discount_lkr > 0 && (
                   <div className="flex justify-between text-emerald-700">
                     <span>Promo Discount</span>
