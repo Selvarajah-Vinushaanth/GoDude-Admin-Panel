@@ -731,9 +731,15 @@ export function BookingsOpsClient({
                       <span>Delivery Fee</span>
                       <span>{formatLKR(detail.booking.delivery_or_service_fee_lkr)}</span>
                     </div>
-                    <div className="flex justify-between text-slate-600">
-                      <span>Service Fee (10% of Delivery Fee)</span>
-                      <span>{formatLKR(detail.booking.service_fee_lkr)}</span>
+                    {detail.booking.service_fee_lkr > 0 && (
+                      <div className="flex justify-between text-slate-600">
+                        <span>Platform Service Fee</span>
+                        <span>{formatLKR(detail.booking.service_fee_lkr)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-emerald-700">
+                      <span>10% Savings Credit (10% of Delivery Fee)</span>
+                      <span>{formatLKR(detail.booking.savings_earned_lkr)}</span>
                     </div>
                   </>
                 ) : (
