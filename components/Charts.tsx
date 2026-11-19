@@ -61,7 +61,7 @@ export function ServiceTrendsChart({ data }: { data: DailyTrendPoint[] }) {
               Parcels: <strong className="text-amber-700">{activePoint.parcel}</strong>
             </span>
             <span>
-              Verified Revenue:{' '}
+              Completed Revenue:{' '}
               <strong className="text-slate-900">{formatLKR(activePoint.revenueLKR)}</strong>
             </span>
           </div>

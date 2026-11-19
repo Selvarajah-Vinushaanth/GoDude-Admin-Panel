@@ -48,6 +48,7 @@ export function FinanceClient() {
   const [summary, setSummary] = useState({
     totalCount: 0,
     verifiedLKR: 0,
+    completedRevenueLKR: 0,
     pendingLKR: 0,
     refundedLKR: 0,
     failedCount: 0,
@@ -59,6 +60,7 @@ export function FinanceClient() {
       serviceType: string;
       txCount: number;
       verifiedLKR: number;
+      completedRevenueLKR: number;
       refundedLKR: number;
       commissionLKR: number;
     }>
@@ -194,14 +196,14 @@ export function FinanceClient() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500">
-            <span>Verified Volume (Filtered)</span>
+            <span>Verified Payments (Filtered)</span>
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
           </div>
           <p className="mt-2 text-2xl font-bold text-slate-900">
             {formatLKR(summary.verifiedLKR)}
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            {formatNumber(summary.totalCount)} matching transactions
+            Completed: {formatLKR(summary.completedRevenueLKR)} · {formatNumber(summary.totalCount)} tx
           </p>
         </div>
 
@@ -253,7 +255,8 @@ export function FinanceClient() {
             <p className="font-semibold text-slate-900">{s.serviceType}</p>
             <p className="mt-1 text-base font-bold text-slate-900">{formatLKR(s.verifiedLKR)}</p>
             <p className="mt-0.5 text-slate-500">
-              {s.txCount} tx · Refunded {formatLKR(s.refundedLKR)}
+              Completed {formatLKR(s.completedRevenueLKR)} · {s.txCount} tx · Refunded{' '}
+              {formatLKR(s.refundedLKR)}
             </p>
           </div>
         ))}

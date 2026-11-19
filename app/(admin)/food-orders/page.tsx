@@ -8,11 +8,14 @@ export default async function FoodOrdersPage({
   searchParams: Promise<{ search?: string; status?: string }>;
 }) {
   const sp = await searchParams;
+  const search = sp.search ?? '';
+  const status = sp.status ?? 'all';
   return (
     <BookingsOpsClient
+      key={`food:${status}:${search}`}
       mode="food"
-      initialSearch={sp.search ?? ''}
-      initialStatus={sp.status ?? 'all'}
+      initialSearch={search}
+      initialStatus={status}
     />
   );
 }

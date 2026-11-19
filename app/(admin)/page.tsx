@@ -62,7 +62,7 @@ export default async function DashboardPage() {
     {
       label: 'Total Customers',
       value: formatNumber(kpis.totalCustomers),
-      sub: 'Registered passenger & food users',
+      sub: `${formatNumber(kpis.totalPlatformUsers)} platform users · ${formatNumber(kpis.dualRoleUsers)} dual-role`,
       href: '/customers',
       icon: Users,
       tone: 'bg-blue-50 text-blue-600',
@@ -84,9 +84,9 @@ export default async function DashboardPage() {
       tone: 'bg-emerald-50 text-emerald-600',
     },
     {
-      label: 'Verified Revenue',
-      value: formatLKR(kpis.verifiedRevenueLKR),
-      sub: `${formatNumber(kpis.totalTransactions)} tx · ${formatLKR(kpis.platformCommissionLKR)} commission`,
+      label: 'Completed Revenue',
+      value: formatLKR(kpis.completedRevenueLKR),
+      sub: `${formatLKR(kpis.verifiedRevenueLKR)} verified tx · ${formatLKR(kpis.platformCommissionLKR)} comm.`,
       href: '/finance',
       icon: CreditCard,
       tone: 'bg-sky-50 text-sky-600',
@@ -377,17 +377,28 @@ export default async function DashboardPage() {
                 className="flex items-center justify-between gap-3 py-2.5 text-xs"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-semibold text-slate-900">
+                  <Link
+                    href={`/customers?role=all&search=${encodeURIComponent(u.account_id)}`}
+                    className="block truncate font-semibold text-slate-900 hover:text-blue-600"
+                  >
                     {u.full_name}{' '}
                     <span className="font-mono text-[11px] font-normal text-slate-400">
                       ({u.account_id})
                     </span>
-                  </p>
+                  </Link>
                   <p className="truncate text-slate-500">
                     {u.phone || u.email || 'No contact'} · {formatDateTime(u.created_at)}
                   </p>
                 </div>
-                <StatusBadge value={u.role} />
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+                  {u.effective_roles.map((roleTag) => (
+                    <StatusBadge
+                      key={roleTag}
+                      value={roleTag}
+                      label={roleTag === 'driver' ? 'Rider' : roleTag === 'merchant' ? 'Merchant' : 'Customer'}
+                    />
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -426,7 +437,17 @@ export default async function DashboardPage() {
                 <tr key={b.id} className="hover:bg-slate-50/70">
                   <td className="py-2.5 pr-3 font-mono font-semibold text-slate-800">{b.id}</td>
                   <td className="py-2.5 px-3 text-slate-600">{b.service_type}</td>
-                  <td className="py-2.5 px-3 font-medium text-slate-900">{b.customer_name}</td>
+                  <td className="py-2.5 px-3 font-medium text-slate-900">
+                    <Link
+                      href={`/customers?role=all&search=${encodeURIComponent(b.customer_account_id)}`}
+                      className="hover:text-blue-600 hover:underline"
+                    >
+                      {b.customer_name}
+                    </Link>
+                    <span className="ml-1.5 font-mono text-[10px] text-slate-400">
+                      {b.customer_account_id}
+                    </span>
+                  </td>
                   <td className="py-2.5 px-3 max-w-xs truncate text-slate-600">{b.title}</td>
                   <td className="py-2.5 px-3">
                     <StatusBadge value={b.status} />

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   Bike,
   CheckCircle2,
@@ -39,6 +40,8 @@ interface RiderRow {
   active_service_type: string | null;
   rating: number;
   total_trips: number;
+  completed_trips_count?: number;
+  customer_bookings_count?: number;
   earnings_lkr: number;
   created_at: string;
 }
@@ -92,14 +95,20 @@ type PendingRiderAction =
       requireReason: boolean;
     };
 
-export function RidersClient({ initialStatus = 'all' }: { initialStatus?: string }) {
+export function RidersClient({
+  initialStatus = 'all',
+  initialSearch = '',
+}: {
+  initialStatus?: string;
+  initialSearch?: string;
+}) {
   const { pushToast } = useToast();
   const [rows, setRows] = useState<RiderRow[]>([]);
   const [total, setTotal] = useState(0);
-  const [counts, setCounts] = useState({ total: 0, approved: 0, pending: 0, online: 0, suspended: 0 });
+  const [counts, setCounts] = useState({ total: 0, approved: 0, pending: 0, online: 0, onTrip: 0, suspended: 0 });
   const [page, setPage] = useState(1);
   const pageSize = 20;
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
   const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [vehicleFilter, setVehicleFilter] = useState('all');
   const [sort, setSort] = useState('updated_at');
@@ -188,10 +197,18 @@ export function RidersClient({ initialStatus = 'all' }: { initialStatus?: string
       sortKey: 'full_name',
       render: (r) => (
         <div>
-          <p className="font-semibold text-slate-900">{r.full_name}</p>
-          <p className="text-xs text-slate-500">
-            {r.phone || r.email || r.account_id} · {r.operating_city || 'Unassigned city'}
+          <p className="font-semibold text-slate-900">
+            {r.full_name}{' '}
+            <span className="font-mono text-[11px] font-normal text-slate-400">{r.account_id}</span>
           </p>
+          <p className="text-xs text-slate-500">
+            {r.phone || r.email || '—'} · {r.operating_city || 'Unassigned city'}
+          </p>
+          {(r.customer_bookings_count ?? 0) > 0 && (
+            <p className="mt-0.5 text-[10px] font-medium text-violet-700">
+              Dual-role · {r.customer_bookings_count} customer booking(s)
+            </p>
+          )}
         </div>
       ),
     },
@@ -275,7 +292,7 @@ export function RidersClient({ initialStatus = 'all' }: { initialStatus?: string
           { value: 'pending', label: 'Pending Verification', count: counts.pending },
           { value: 'approved', label: 'Approved', count: counts.approved },
           { value: 'online', label: 'Online', count: counts.online },
-          { value: 'on_trip', label: 'Active Trip / Reserved' },
+          { value: 'on_trip', label: 'Active Trip / Reserved', count: counts.onTrip },
           { value: 'suspended', label: 'Unavailable / Suspended', count: counts.suspended },
         ]}
         activeFilter={statusFilter}
@@ -348,9 +365,17 @@ export function RidersClient({ initialStatus = 'all' }: { initialStatus?: string
                     <StatusBadge value="pending" label="Verification Pending" />
                   )}
                 </div>
-                <span className="font-mono text-xs text-slate-500">
-                  {detail.rider.account_id}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-slate-500">
+                    {detail.rider.account_id}
+                  </span>
+                  <Link
+                    href={`/customers?role=all&search=${encodeURIComponent(detail.rider.account_id)}`}
+                    className="text-xs font-semibold text-blue-600 hover:underline"
+                  >
+                    Account Profile →
+                  </Link>
+                </div>
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">

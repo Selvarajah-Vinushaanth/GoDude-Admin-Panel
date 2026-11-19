@@ -1,5 +1,5 @@
 import { query } from '../db';
-import { buildSortClause } from './shared';
+import { buildSortClause, colomboDateFilterSql } from './shared';
 
 export async function listTransactions(params: {
   page: number;
@@ -26,17 +26,17 @@ export async function listTransactions(params: {
   }
   if (params.dateFrom) {
     values.push(params.dateFrom);
-    clauses.push(`pt.created_at >= $${values.length}::date`);
+    clauses.push(colomboDateFilterSql('pt.created_at', values.length, '>='));
   }
   if (params.dateTo) {
     values.push(params.dateTo);
-    clauses.push(`pt.created_at < ($${values.length}::date + INTERVAL '1 day')`);
+    clauses.push(colomboDateFilterSql('pt.created_at', values.length, '<='));
   }
   if (params.search) {
     values.push(`%${params.search}%`);
     const p = `$${values.length}`;
     clauses.push(
-      `(pt.booking_id ILIKE ${p} OR COALESCE(pt.gateway_ref, '') ILIKE ${p} OR pt.method ILIKE ${p} OR u.full_name ILIKE ${p} OR COALESCE(u.phone, '') ILIKE ${p})`
+      `(pt.booking_id ILIKE ${p} OR COALESCE(pt.gateway_ref, '') ILIKE ${p} OR pt.method ILIKE ${p} OR u.full_name ILIKE ${p} OR u.account_id ILIKE ${p} OR COALESCE(u.phone, '') ILIKE ${p})`
     );
   }
 
@@ -64,6 +64,7 @@ export async function listTransactions(params: {
     query<{
       total_count: string;
       verified_lkr: string;
+      completed_revenue_lkr: string;
       pending_lkr: string;
       refunded_lkr: string;
       failed_count: string;
@@ -73,6 +74,7 @@ export async function listTransactions(params: {
       `SELECT
          COUNT(*)::text AS total_count,
          COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status = 'verified'), 0)::text AS verified_lkr,
+         COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status = 'verified' AND b.status IN ('Completed', 'Delivered')), 0)::text AS completed_revenue_lkr,
          COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status = 'pending'), 0)::text AS pending_lkr,
          COALESCE(SUM(CASE WHEN pt.refund_amount_lkr > 0 THEN pt.refund_amount_lkr WHEN pt.status = 'refunded' THEN pt.amount_lkr ELSE 0 END), 0)::text AS refunded_lkr,
          COUNT(*) FILTER (WHERE pt.status = 'failed')::text AS failed_count,
@@ -88,6 +90,7 @@ export async function listTransactions(params: {
       service_type: string;
       tx_count: string;
       verified_lkr: string;
+      completed_revenue_lkr: string;
       refunded_lkr: string;
       commission_lkr: string;
     }>(
@@ -95,12 +98,16 @@ export async function listTransactions(params: {
          b.service_type,
          COUNT(pt.id)::text AS tx_count,
          COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status = 'verified'), 0)::text AS verified_lkr,
+         COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status = 'verified' AND b.status IN ('Completed', 'Delivered')), 0)::text AS completed_revenue_lkr,
          COALESCE(SUM(CASE WHEN pt.refund_amount_lkr > 0 THEN pt.refund_amount_lkr WHEN pt.status = 'refunded' THEN pt.amount_lkr ELSE 0 END), 0)::text AS refunded_lkr,
-         COALESCE(SUM(b.platform_commission_lkr) FILTER (WHERE pt.status = 'verified'), 0)::text AS commission_lkr
+         COALESCE(SUM(b.platform_commission_lkr) FILTER (WHERE pt.status = 'verified' AND b.status IN ('Completed', 'Delivered')), 0)::text AS commission_lkr
        FROM payment_transactions pt
        JOIN bookings b ON b.id = pt.booking_id
+       JOIN users u ON u.id = pt.user_id
+       ${whereSql}
        GROUP BY b.service_type
-       ORDER BY SUM(pt.amount_lkr) DESC`
+       ORDER BY SUM(pt.amount_lkr) DESC`,
+      values
     ),
   ]);
 
@@ -131,6 +138,7 @@ export async function listTransactions(params: {
     summary: {
       totalCount: Number(s?.total_count ?? 0),
       verifiedLKR: Number(s?.verified_lkr ?? 0),
+      completedRevenueLKR: Number(s?.completed_revenue_lkr ?? 0),
       pendingLKR: Number(s?.pending_lkr ?? 0),
       refundedLKR: Number(s?.refunded_lkr ?? 0),
       failedCount: Number(s?.failed_count ?? 0),
@@ -141,6 +149,7 @@ export async function listTransactions(params: {
       serviceType: r.service_type,
       txCount: Number(r.tx_count),
       verifiedLKR: Number(r.verified_lkr),
+      completedRevenueLKR: Number(r.completed_revenue_lkr),
       refundedLKR: Number(r.refunded_lkr),
       commissionLKR: Number(r.commission_lkr),
     })),

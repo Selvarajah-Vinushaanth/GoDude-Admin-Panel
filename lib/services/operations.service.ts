@@ -1,7 +1,12 @@
 import { AdminSession } from '../auth';
 import { query, withTransaction } from '../db';
 import { callGoDudeAdminApi } from '../godude-api';
-import { buildSortClause, insertNotification, recordAuditLog } from './shared';
+import {
+  buildSortClause,
+  colomboDateFilterSql,
+  insertNotification,
+  recordAuditLog,
+} from './shared';
 
 export async function listRides(params: {
   page: number;
@@ -17,23 +22,25 @@ export async function listRides(params: {
   const values: unknown[] = [];
   const clauses: string[] = [`b.service_type IN ('Ride Booking', 'Flexible Ride')`];
 
-  if (params.status && params.status !== 'all') {
+  if (params.status === 'active') {
+    clauses.push(`b.status IN ('Searching', 'Rider Assigned', 'Arrived', 'On the Way')`);
+  } else if (params.status && params.status !== 'all') {
     values.push(params.status);
     clauses.push(`b.status = $${values.length}`);
   }
   if (params.dateFrom) {
     values.push(params.dateFrom);
-    clauses.push(`b.created_at >= $${values.length}::date`);
+    clauses.push(colomboDateFilterSql('b.created_at', values.length, '>='));
   }
   if (params.dateTo) {
     values.push(params.dateTo);
-    clauses.push(`b.created_at < ($${values.length}::date + INTERVAL '1 day')`);
+    clauses.push(colomboDateFilterSql('b.created_at', values.length, '<='));
   }
   if (params.search) {
     values.push(`%${params.search}%`);
     const p = `$${values.length}`;
     clauses.push(
-      `(b.id ILIKE ${p} OR b.title ILIKE ${p} OR b.pickup_address ILIKE ${p} OR b.destination_address ILIKE ${p} OR c.full_name ILIKE ${p} OR COALESCE(c.phone, '') ILIKE ${p} OR COALESCE(du.full_name, '') ILIKE ${p})`
+      `(b.id ILIKE ${p} OR b.title ILIKE ${p} OR b.pickup_address ILIKE ${p} OR b.destination_address ILIKE ${p} OR c.full_name ILIKE ${p} OR c.account_id ILIKE ${p} OR COALESCE(c.phone, '') ILIKE ${p} OR COALESCE(du.full_name, '') ILIKE ${p})`
     );
   }
 
@@ -77,8 +84,8 @@ export async function listRides(params: {
             b.estimated_distance_km::float8 AS distance_km,
             b.total_paid_lkr, b.rider_earnings_lkr, b.platform_commission_lkr,
             b.created_at::text, b.started_at::text, b.completed_at::text,
-            c.id AS customer_id, c.full_name AS customer_name, c.phone AS customer_phone,
-            d.id AS driver_id, du.full_name AS driver_name, d.plate_number
+            c.id AS customer_id, c.account_id AS customer_account_id, c.full_name AS customer_name, c.phone AS customer_phone,
+            d.id AS driver_id, du.account_id AS driver_account_id, du.full_name AS driver_name, d.plate_number
      FROM bookings b
      JOIN users c ON c.id = b.customer_id
      LEFT JOIN drivers d ON d.id = b.driver_id
@@ -118,23 +125,27 @@ export async function listFoodOrders(params: {
   const values: unknown[] = [];
   const clauses: string[] = [`b.service_type = 'Food Delivery'`];
 
-  if (params.status && params.status !== 'all') {
+  if (params.status === 'active') {
+    clauses.push(
+      `b.status IN ('Searching', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Rider Assigned', 'Arrived', 'On the Way')`
+    );
+  } else if (params.status && params.status !== 'all') {
     values.push(params.status);
     clauses.push(`b.status = $${values.length}`);
   }
   if (params.dateFrom) {
     values.push(params.dateFrom);
-    clauses.push(`b.created_at >= $${values.length}::date`);
+    clauses.push(colomboDateFilterSql('b.created_at', values.length, '>='));
   }
   if (params.dateTo) {
     values.push(params.dateTo);
-    clauses.push(`b.created_at < ($${values.length}::date + INTERVAL '1 day')`);
+    clauses.push(colomboDateFilterSql('b.created_at', values.length, '<='));
   }
   if (params.search) {
     values.push(`%${params.search}%`);
     const p = `$${values.length}`;
     clauses.push(
-      `(b.id ILIKE ${p} OR b.title ILIKE ${p} OR b.destination_address ILIKE ${p} OR COALESCE(r.name, '') ILIKE ${p} OR c.full_name ILIKE ${p} OR COALESCE(du.full_name, '') ILIKE ${p})`
+      `(b.id ILIKE ${p} OR b.title ILIKE ${p} OR b.destination_address ILIKE ${p} OR COALESCE(r.name, '') ILIKE ${p} OR c.full_name ILIKE ${p} OR c.account_id ILIKE ${p} OR COALESCE(du.full_name, '') ILIKE ${p})`
     );
   }
 
@@ -178,9 +189,9 @@ export async function listFoodOrders(params: {
             b.subtotal_lkr, b.delivery_or_service_fee_lkr, b.discount_lkr,
             b.total_paid_lkr, b.estimated_prep_mins, b.items_summary,
             b.created_at::text, b.completed_at::text,
-            c.id AS customer_id, c.full_name AS customer_name, c.phone AS customer_phone,
+            c.id AS customer_id, c.account_id AS customer_account_id, c.full_name AS customer_name, c.phone AS customer_phone,
             r.id AS restaurant_id, r.name AS restaurant_name, r.city AS restaurant_city,
-            d.id AS driver_id, du.full_name AS driver_name, d.plate_number
+            d.id AS driver_id, du.account_id AS driver_account_id, du.full_name AS driver_name, d.plate_number
      FROM bookings b
      JOIN users c ON c.id = b.customer_id
      LEFT JOIN restaurants r ON r.id = b.restaurant_id
@@ -221,23 +232,25 @@ export async function listParcels(params: {
   const values: unknown[] = [];
   const clauses: string[] = [`b.service_type = 'Parcel Delivery'`];
 
-  if (params.status && params.status !== 'all') {
+  if (params.status === 'active') {
+    clauses.push(`b.status IN ('Searching', 'Rider Assigned', 'Arrived', 'On the Way', 'Return Initiated')`);
+  } else if (params.status && params.status !== 'all') {
     values.push(params.status);
     clauses.push(`b.status = $${values.length}`);
   }
   if (params.dateFrom) {
     values.push(params.dateFrom);
-    clauses.push(`b.created_at >= $${values.length}::date`);
+    clauses.push(colomboDateFilterSql('b.created_at', values.length, '>='));
   }
   if (params.dateTo) {
     values.push(params.dateTo);
-    clauses.push(`b.created_at < ($${values.length}::date + INTERVAL '1 day')`);
+    clauses.push(colomboDateFilterSql('b.created_at', values.length, '<='));
   }
   if (params.search) {
     values.push(`%${params.search}%`);
     const p = `$${values.length}`;
     clauses.push(
-      `(b.id ILIKE ${p} OR b.pickup_address ILIKE ${p} OR b.destination_address ILIKE ${p} OR c.full_name ILIKE ${p} OR COALESCE(pd.sender_name, '') ILIKE ${p} OR COALESCE(pd.recipient_name, '') ILIKE ${p} OR COALESCE(pd.parcel_category, '') ILIKE ${p} OR COALESCE(du.full_name, '') ILIKE ${p})`
+      `(b.id ILIKE ${p} OR b.pickup_address ILIKE ${p} OR b.destination_address ILIKE ${p} OR c.full_name ILIKE ${p} OR c.account_id ILIKE ${p} OR COALESCE(pd.sender_name, '') ILIKE ${p} OR COALESCE(pd.recipient_name, '') ILIKE ${p} OR COALESCE(pd.parcel_category, '') ILIKE ${p} OR COALESCE(du.full_name, '') ILIKE ${p})`
     );
   }
 
@@ -280,8 +293,8 @@ export async function listParcels(params: {
             b.total_paid_lkr, b.rider_earnings_lkr, b.platform_commission_lkr,
             b.payment_method, b.payment_status, b.estimated_distance_km::float8 AS distance_km,
             b.created_at::text, b.completed_at::text,
-            c.id AS customer_id, c.full_name AS customer_name, c.phone AS customer_phone,
-            d.id AS driver_id, du.full_name AS driver_name, d.plate_number,
+            c.id AS customer_id, c.account_id AS customer_account_id, c.full_name AS customer_name, c.phone AS customer_phone,
+            d.id AS driver_id, du.account_id AS driver_account_id, du.full_name AS driver_name, d.plate_number,
             pd.sender_name, pd.sender_phone, pd.recipient_name, pd.recipient_phone,
             pd.parcel_category, pd.parcel_count, pd.weight_kg::float8 AS weight_kg,
             pd.is_fragile, pd.lifecycle_stage, pd.failure_reason, pd.return_reason

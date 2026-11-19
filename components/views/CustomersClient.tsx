@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Phone, Mail, MapPin, Landmark, Star, Wallet, Bell } from 'lucide-react';
+import Link from 'next/link';
+import { Phone, Mail, MapPin, Landmark, Star, Wallet, Bell, Bike, Store, AlertCircle } from 'lucide-react';
 import { DataTable, TableColumn } from '@/components/ui/DataTable';
 import { Drawer } from '@/components/ui/Drawer';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -15,6 +16,13 @@ interface CustomerRow {
   email: string;
   phone: string | null;
   role: string;
+  effective_roles: Array<'customer' | 'driver' | 'merchant' | 'admin'>;
+  onboarding_pending_role: 'driver' | 'merchant' | null;
+  has_driver_profile: boolean;
+  driver_id: string | null;
+  driver_plate: string | null;
+  has_restaurant_profile: boolean;
+  restaurants_owned_count: number;
   rating: number;
   total_ratings: number;
   member_since: string;
@@ -31,6 +39,43 @@ interface CustomerDetailPayload {
     location_consent_enabled: boolean;
     selected_location_id: string;
   };
+  summary: {
+    rides_count: number;
+    food_orders_count: number;
+    parcels_count: number;
+    total_bookings_count: number;
+    completed_spend_lkr: number;
+    refunded_total_lkr: number;
+    payments_count: number;
+  };
+  driverProfile: {
+    id: string;
+    vehicle_type: string;
+    vehicle_name: string;
+    plate_number: string;
+    is_verified: boolean;
+    vehicle_approved: boolean;
+    driver_state: string;
+    operating_city: string;
+    rating: number;
+    total_trips: number;
+    total_earnings_lkr: number;
+  } | null;
+  ownedRestaurants: Array<{
+    id: string;
+    name: string;
+    city: string;
+    approval_status: string;
+    store_status: string;
+    rating: number;
+  }>;
+  relatedAccountsByEmail: Array<{
+    id: string;
+    account_id: string;
+    full_name: string;
+    phone: string | null;
+    role: string;
+  }>;
   savedAddresses: Array<{
     id: string;
     label: string;
@@ -74,14 +119,34 @@ interface CustomerDetailPayload {
   }>;
 }
 
-export function CustomersClient({ initialSearch = '' }: { initialSearch?: string }) {
+function roleLabel(role: string): string {
+  if (role === 'driver') return 'Rider';
+  if (role === 'merchant') return 'Merchant';
+  if (role === 'admin') return 'Admin';
+  return 'Customer';
+}
+
+export function CustomersClient({
+  initialSearch = '',
+  initialRole = 'customer',
+}: {
+  initialSearch?: string;
+  initialRole?: string;
+}) {
   const { pushToast } = useToast();
   const [rows, setRows] = useState<CustomerRow[]>([]);
   const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState({
+    customers: 0,
+    all: 0,
+    drivers: 0,
+    merchants: 0,
+    dual: 0,
+  });
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const [search, setSearch] = useState(initialSearch);
-  const [roleFilter, setRoleFilter] = useState('customer');
+  const [roleFilter, setRoleFilter] = useState(initialRole || 'customer');
   const [sort, setSort] = useState('created_at');
   const [order, setOrder] = useState<'ASC' | 'DESC'>('DESC');
   const [loading, setLoading] = useState(true);
@@ -109,6 +174,7 @@ export function CustomersClient({ initialSearch = '' }: { initialSearch?: string
       if (!res.ok) throw new Error(json.error || 'Failed to load customers');
       setRows(json.items || []);
       setTotal(json.total || 0);
+      if (json.counts) setCounts(json.counts);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load customers');
     } finally {
@@ -141,7 +207,7 @@ export function CustomersClient({ initialSearch = '' }: { initialSearch?: string
   const columns: TableColumn<CustomerRow>[] = [
     {
       key: 'full_name',
-      header: 'Customer',
+      header: 'Account',
       sortKey: 'full_name',
       render: (r) => (
         <div>
@@ -162,12 +228,23 @@ export function CustomersClient({ initialSearch = '' }: { initialSearch?: string
     },
     {
       key: 'role',
-      header: 'Role',
-      render: (r) => <StatusBadge value={r.role} />,
+      header: 'Authoritative Roles',
+      render: (r) => (
+        <div className="flex flex-wrap items-center gap-1">
+          {(r.effective_roles?.length ? r.effective_roles : [r.role]).map((tag) => (
+            <StatusBadge key={tag} value={tag} label={roleLabel(tag)} />
+          ))}
+          {r.onboarding_pending_role && (
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-600/20">
+              {r.onboarding_pending_role === 'driver' ? 'Rider setup incomplete' : 'Store setup incomplete'}
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       key: 'activity',
-      header: 'Orders & Trips',
+      header: 'Customer Orders & Trips',
       render: (r) => (
         <div className="flex flex-wrap gap-1.5 text-[11px] text-slate-600">
           <span className="rounded-md bg-blue-50 px-2 py-0.5 font-medium text-blue-700">
@@ -228,8 +305,11 @@ export function CustomersClient({ initialSearch = '' }: { initialSearch?: string
         search={search}
         searchPlaceholder="Search by name, phone, email, or account ID..."
         filterTabs={[
-          { value: 'customer', label: 'Customers Only' },
-          { value: 'all', label: 'All Platform Users' },
+          { value: 'customer', label: 'Customers', count: counts.customers },
+          { value: 'all', label: 'All Platform Users', count: counts.all },
+          { value: 'driver', label: 'Riders', count: counts.drivers },
+          { value: 'merchant', label: 'Merchants', count: counts.merchants },
+          { value: 'dual', label: 'Multi-Role', count: counts.dual },
         ]}
         activeFilter={roleFilter}
         sort={sort}
@@ -260,7 +340,7 @@ export function CustomersClient({ initialSearch = '' }: { initialSearch?: string
           setSelectedId(null);
           setDetail(null);
         }}
-        title={detail?.customer.full_name || 'Customer Profile'}
+        title={detail?.customer.full_name || 'Account Profile'}
         subtitle={
           detail
             ? `${detail.customer.account_id} · Joined ${formatDateShort(detail.customer.created_at)}`
@@ -275,11 +355,16 @@ export function CustomersClient({ initialSearch = '' }: { initialSearch?: string
           </div>
         ) : (
           <div className="space-y-5">
-            {/* Contact & Account Status Card */}
+            {/* Contact & Authoritative Account Roles Card */}
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <StatusBadge value={detail.customer.role} />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(detail.customer.effective_roles?.length
+                    ? detail.customer.effective_roles
+                    : [detail.customer.role]
+                  ).map((tag) => (
+                    <StatusBadge key={tag} value={tag} label={roleLabel(tag)} />
+                  ))}
                   <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200">
                     ★ {Number(detail.customer.rating).toFixed(2)} ({detail.customer.total_ratings} reviews)
                   </span>
@@ -311,17 +396,118 @@ export function CustomersClient({ initialSearch = '' }: { initialSearch?: string
                   </span>
                 </div>
               </div>
+
+              {/* Authoritative Financial Totals */}
+              <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-200 pt-3 text-xs">
+                <div className="rounded-xl bg-white p-2.5 ring-1 ring-slate-200/70">
+                  <p className="text-slate-500">Total Bookings</p>
+                  <p className="mt-0.5 font-bold text-slate-900">
+                    {detail.summary?.total_bookings_count ?? detail.bookings.length}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-white p-2.5 ring-1 ring-slate-200/70">
+                  <p className="text-slate-500">Completed Spend</p>
+                  <p className="mt-0.5 font-bold text-emerald-700">
+                    {formatLKR(detail.summary?.completed_spend_lkr ?? detail.customer.total_spent_lkr)}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-white p-2.5 ring-1 ring-slate-200/70">
+                  <p className="text-slate-500">Refunded</p>
+                  <p className="mt-0.5 font-bold text-rose-700">
+                    {formatLKR(detail.summary?.refunded_total_lkr ?? 0)}
+                  </p>
+                </div>
+              </div>
             </div>
+
+            {/* Linked Rider Profile (for multi-role Customer + Rider users) */}
+            {detail.driverProfile && (
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-4 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 font-semibold text-blue-900">
+                    <Bike className="h-4 w-4 text-blue-600" />
+                    <span>Linked Rider Profile</span>
+                  </div>
+                  <Link
+                    href={`/riders?search=${encodeURIComponent(detail.customer.account_id)}`}
+                    className="font-semibold text-blue-700 hover:underline"
+                  >
+                    Open in Riders →
+                  </Link>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-slate-700">
+                  <span className="font-medium">
+                    {detail.driverProfile.vehicle_name} ({detail.driverProfile.vehicle_type.toUpperCase()})
+                  </span>
+                  <span className="font-mono text-slate-500">· {detail.driverProfile.plate_number}</span>
+                  <StatusBadge value={detail.driverProfile.driver_state} />
+                </div>
+                <p className="mt-1.5 text-slate-600">
+                  {detail.driverProfile.total_trips} trips · ★ {Number(detail.driverProfile.rating).toFixed(2)} ·
+                  Earnings: <strong>{formatLKR(detail.driverProfile.total_earnings_lkr)}</strong>
+                </p>
+              </div>
+            )}
+
+            {/* Linked Owned Restaurants (for multi-role Customer + Merchant users) */}
+            {detail.ownedRestaurants && detail.ownedRestaurants.length > 0 && (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 text-xs">
+                <div className="flex items-center gap-2 font-semibold text-emerald-900">
+                  <Store className="h-4 w-4 text-emerald-600" />
+                  <span>Owned Restaurants ({detail.ownedRestaurants.length})</span>
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {detail.ownedRestaurants.map((rest) => (
+                    <div key={rest.id} className="flex items-center justify-between gap-2">
+                      <Link
+                        href={`/restaurants?inspect=${encodeURIComponent(rest.id)}`}
+                        className="font-medium text-emerald-800 hover:underline"
+                      >
+                        {rest.name} ({rest.city})
+                      </Link>
+                      <StatusBadge value={rest.approval_status} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Same-Email Separate Accounts Notice (transparency without destructive auto-merging) */}
+            {detail.relatedAccountsByEmail && detail.relatedAccountsByEmail.length > 0 && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 text-xs text-amber-900">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div>
+                    <p className="font-semibold">Other Accounts Sharing This Email</p>
+                    <p className="mt-0.5 text-amber-800">
+                      Distinct phone-verified accounts exist with the same email address:
+                    </p>
+                    <div className="mt-1.5 space-y-1">
+                      {detail.relatedAccountsByEmail.map((acc) => (
+                        <button
+                          key={acc.id}
+                          type="button"
+                          onClick={() => openDetail(acc.id)}
+                          className="block text-left font-mono text-[11px] font-semibold text-amber-950 underline"
+                        >
+                          {acc.full_name} ({acc.account_id}) · {acc.phone || 'No phone'} · {acc.role}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Sub-tabs */}
             <div className="flex flex-wrap gap-1.5 border-b border-slate-200 pb-3">
               {(
                 [
                   ['overview', 'Profile & Resources'],
-                  ['rides', `Rides (${rideHistory.length})`],
-                  ['food', `Food (${foodHistory.length})`],
-                  ['parcels', `Parcels (${parcelHistory.length})`],
-                  ['finance', `Payments & Savings (${detail.payments.length})`],
+                  ['rides', `Rides (${detail.summary?.rides_count ?? rideHistory.length})`],
+                  ['food', `Food (${detail.summary?.food_orders_count ?? foodHistory.length})`],
+                  ['parcels', `Parcels (${detail.summary?.parcels_count ?? parcelHistory.length})`],
+                  ['finance', `Payments & Savings (${detail.summary?.payments_count ?? detail.payments.length})`],
                 ] as const
               ).map(([k, label]) => (
                 <button

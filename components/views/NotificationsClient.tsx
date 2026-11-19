@@ -17,6 +17,7 @@ interface NotificationRow {
   body: string;
   is_read: boolean;
   created_at: string;
+  recipient_account_id?: string | null;
   recipient_name: string;
   recipient_phone: string | null;
 }
@@ -100,9 +101,15 @@ export function NotificationsClient() {
       if (active && res.ok) {
         const list = (json.recipients || []) as RecipientOption[];
         setRecipients(list);
-        if (list.length > 0 && !list.some((x) => x.user_id === selectedUserId)) {
-          setSelectedUserId(list[0].user_id);
-          setSelectedRestaurantId(list[0].restaurant_id || '');
+        if (list.length === 0) {
+          setSelectedUserId('');
+          setSelectedRestaurantId('');
+        } else {
+          setSelectedUserId((prev) => {
+            if (prev && list.some((x) => x.user_id === prev)) return prev;
+            setSelectedRestaurantId(list[0].restaurant_id || '');
+            return list[0].user_id;
+          });
         }
       }
     }
@@ -111,7 +118,7 @@ export function NotificationsClient() {
       active = false;
       clearTimeout(t);
     };
-  }, [composeRole, recipientSearch, selectedUserId]);
+  }, [composeRole, recipientSearch]);
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
@@ -153,7 +160,10 @@ export function NotificationsClient() {
       render: (r) => (
         <div className="text-xs">
           <p className="font-semibold text-slate-900">{r.recipient_name}</p>
-          <p className="text-slate-500">{r.recipient_phone || r.user_id.slice(0, 8)}</p>
+          <p className="text-slate-500">
+            {r.recipient_phone || '—'}
+            {r.recipient_account_id ? ` · ${r.recipient_account_id}` : ''}
+          </p>
         </div>
       ),
     },
@@ -227,6 +237,8 @@ export function NotificationsClient() {
                   type="button"
                   onClick={() => {
                     setComposeRole(role);
+                    setSelectedUserId('');
+                    setSelectedRestaurantId('');
                     setEventType(
                       role === 'merchant'
                         ? 'restaurant_onboarding_instruction'

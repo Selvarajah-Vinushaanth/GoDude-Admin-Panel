@@ -36,8 +36,11 @@ interface BookingListRow {
   rider_earnings_lkr?: number;
   platform_commission_lkr?: number;
   created_at: string;
+  customer_id?: string;
+  customer_account_id?: string;
   customer_name: string;
   customer_phone: string | null;
+  driver_account_id?: string | null;
   driver_name: string | null;
   plate_number: string | null;
   restaurant_name?: string | null;
@@ -264,6 +267,7 @@ export function BookingsOpsClient({
     mode === 'rides'
       ? [
           { value: 'all', label: 'All Rides', count: counts.total },
+          { value: 'active', label: 'Active', count: counts.active },
           { value: 'Searching', label: 'Searching' },
           { value: 'On the Way', label: 'In Progress' },
           { value: 'Completed', label: 'Completed', count: counts.completed },
@@ -272,6 +276,7 @@ export function BookingsOpsClient({
       : mode === 'food'
         ? [
             { value: 'all', label: 'All Orders', count: counts.total },
+            { value: 'active', label: 'Active', count: counts.active },
             { value: 'Confirmed', label: 'Confirmed' },
             { value: 'Preparing', label: 'Preparing' },
             { value: 'On the Way', label: 'Out for Delivery' },
@@ -280,6 +285,7 @@ export function BookingsOpsClient({
           ]
         : [
             { value: 'all', label: 'All Parcels', count: counts.total },
+            { value: 'active', label: 'Active', count: counts.active },
             { value: 'Searching', label: 'Searching' },
             { value: 'On the Way', label: 'In Transit' },
             { value: 'Delivered', label: 'Delivered', count: counts.delivered },
@@ -310,7 +316,10 @@ export function BookingsOpsClient({
       render: (r) => (
         <div className="text-xs">
           <p className="font-medium text-slate-900">{r.customer_name}</p>
-          <p className="text-slate-500">{r.customer_phone || '—'}</p>
+          <p className="text-slate-500">
+            {r.customer_phone || '—'}
+            {r.customer_account_id ? ` · ${r.customer_account_id}` : ''}
+          </p>
         </div>
       ),
     },

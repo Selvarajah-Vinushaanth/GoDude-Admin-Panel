@@ -24,6 +24,8 @@ export interface RiderListRow {
   active_service_type: string | null;
   rating: number;
   total_trips: number;
+  completed_trips_count: number;
+  customer_bookings_count: number;
   earnings_lkr: number;
   last_location_at: string | null;
   created_at: string;
@@ -85,6 +87,7 @@ export async function listRiders(params: {
     params.sort,
     params.order ?? 'DESC',
     {
+      updated_at: 'd.updated_at',
       created_at: 'd.created_at',
       full_name: 'u.full_name',
       rating: 'd.rating',
@@ -104,15 +107,18 @@ export async function listRiders(params: {
       approved: string;
       pending: string;
       online: string;
+      on_trip: string;
       suspended: string;
     }>(
       `SELECT
          COUNT(*)::text AS total,
-         COUNT(*) FILTER (WHERE is_verified = TRUE AND vehicle_approved = TRUE)::text AS approved,
-         COUNT(*) FILTER (WHERE is_verified = FALSE OR vehicle_approved = FALSE)::text AS pending,
-         COUNT(*) FILTER (WHERE is_online = TRUE)::text AS online,
-         COUNT(*) FILTER (WHERE driver_state = 'UNAVAILABLE')::text AS suspended
-       FROM drivers`
+         COUNT(*) FILTER (WHERE d.is_verified = TRUE AND d.vehicle_approved = TRUE)::text AS approved,
+         COUNT(*) FILTER (WHERE d.is_verified = FALSE OR d.vehicle_approved = FALSE)::text AS pending,
+         COUNT(*) FILTER (WHERE d.is_online = TRUE)::text AS online,
+         COUNT(*) FILTER (WHERE d.driver_state IN ('RESERVED', 'ASSIGNED', 'ON_RIDE', 'ON_FOOD_DELIVERY', 'ON_PARCEL_DELIVERY', 'ON_TRIP'))::text AS on_trip,
+         COUNT(*) FILTER (WHERE d.driver_state = 'UNAVAILABLE')::text AS suspended
+       FROM drivers d
+       JOIN users u ON u.id = d.user_id`
     ),
   ]);
 
@@ -139,6 +145,8 @@ export async function listRiders(params: {
        d.active_service_type,
        d.rating::float8 AS rating,
        d.total_trips,
+       COUNT(b.id) FILTER (WHERE b.status IN ('Completed', 'Delivered'))::int AS completed_trips_count,
+       (SELECT COUNT(*)::int FROM bookings bc WHERE bc.customer_id = u.id) AS customer_bookings_count,
        COALESCE(SUM(b.rider_earnings_lkr) FILTER (WHERE b.status IN ('Completed', 'Delivered')), 0)::int AS earnings_lkr,
        d.last_location_at::text,
        d.created_at::text
@@ -163,6 +171,7 @@ export async function listRiders(params: {
       approved: Number(s?.approved ?? 0),
       pending: Number(s?.pending ?? 0),
       online: Number(s?.online ?? 0),
+      onTrip: Number(s?.on_trip ?? 0),
       suspended: Number(s?.suspended ?? 0),
     },
   };
@@ -181,7 +190,9 @@ export async function getRiderDetail(driverId: string) {
               d.rating::float8 AS rating, d.total_trips,
               d.created_at::text, d.updated_at::text,
               COALESCE((SELECT SUM(b.rider_earnings_lkr) FROM bookings b WHERE b.driver_id = d.id AND b.status IN ('Completed', 'Delivered')), 0)::int AS total_earnings_lkr,
-              COALESCE((SELECT COUNT(*) FROM bookings b WHERE b.driver_id = d.id), 0)::int AS assigned_bookings_count
+              COALESCE((SELECT COUNT(*) FROM bookings b WHERE b.driver_id = d.id AND b.status IN ('Completed', 'Delivered')), 0)::int AS completed_trips_count,
+              COALESCE((SELECT COUNT(*) FROM bookings b WHERE b.driver_id = d.id), 0)::int AS assigned_bookings_count,
+              COALESCE((SELECT COUNT(*) FROM bookings bc WHERE bc.customer_id = u.id), 0)::int AS customer_bookings_count
        FROM drivers d
        JOIN users u ON u.id = d.user_id
        WHERE d.id = $1 LIMIT 1`,

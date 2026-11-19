@@ -20,11 +20,13 @@ export interface RestaurantListRow {
   contact_phone: string;
   rejection_reason: string | null;
   owner_user_id: string | null;
+  owner_account_id: string | null;
   owner_name: string | null;
   owner_phone: string | null;
   owner_email: string | null;
   menu_count: number;
   orders_count: number;
+  completed_revenue_lkr: number;
   created_at: string;
 }
 
@@ -113,11 +115,13 @@ export async function listRestaurants(params: {
        r.contact_phone,
        r.rejection_reason,
        r.owner_user_id,
+       u.account_id AS owner_account_id,
        u.full_name AS owner_name,
        u.phone AS owner_phone,
        u.email AS owner_email,
        (SELECT COUNT(*) FROM food_items fi WHERE fi.restaurant_id = r.id AND fi.is_deleted = FALSE)::int AS menu_count,
        (SELECT COUNT(*) FROM bookings b WHERE b.restaurant_id = r.id)::int AS orders_count,
+       (SELECT COALESCE(SUM(b.total_paid_lkr) FILTER (WHERE b.status IN ('Completed', 'Delivered')), 0) FROM bookings b WHERE b.restaurant_id = r.id)::int AS completed_revenue_lkr,
        r.created_at::text
      FROM restaurants r
      LEFT JOIN users u ON u.id = r.owner_user_id

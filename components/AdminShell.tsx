@@ -123,14 +123,15 @@ export function AdminShell({ admin, alerts, dbError, vmHealth, children }: Admin
     e.preventDefault();
     const q = quickQuery.trim();
     if (!q) return;
-    if (q.toUpperCase().startsWith('FOD-')) {
+    const upper = q.toUpperCase();
+    if (upper.startsWith('ORD-') || upper.startsWith('FOD-')) {
       router.push(`/food-orders?search=${encodeURIComponent(q)}`);
-    } else if (q.toUpperCase().startsWith('PAR-') || q.toUpperCase().startsWith('PKD-')) {
+    } else if (upper.startsWith('PAR-') || upper.startsWith('PKD-')) {
       router.push(`/parcels?search=${encodeURIComponent(q)}`);
-    } else if (q.toUpperCase().startsWith('RID-') || q.toUpperCase().startsWith('FLX-')) {
+    } else if (upper.startsWith('RID-') || upper.startsWith('FLX-')) {
       router.push(`/rides?search=${encodeURIComponent(q)}`);
     } else {
-      router.push(`/customers?search=${encodeURIComponent(q)}`);
+      router.push(`/customers?role=all&search=${encodeURIComponent(q)}`);
     }
   }
 

@@ -1,7 +1,7 @@
 import { AdminSession } from '../auth';
 import { query } from '../db';
 import { callGoDudeAdminApi } from '../godude-api';
-import { insertNotification, recordAuditLog } from './shared';
+import { authoritativeIsCustomerSql, insertNotification, recordAuditLog } from './shared';
 
 export async function listNotifications(params: {
   page: number;
@@ -55,6 +55,7 @@ export async function listNotifications(params: {
   const rowsRes = await query(
     `SELECT n.id, n.user_id, n.booking_id, n.role_target, n.event_type,
             n.title, n.body, n.data, n.is_read, n.created_at::text,
+            u.account_id AS recipient_account_id,
             u.full_name AS recipient_name, u.phone AS recipient_phone, u.role AS recipient_role
      FROM notifications n
      JOIN users u ON u.id = n.user_id
@@ -113,8 +114,8 @@ export async function searchNotificationRecipients(roleTarget: string, q: string
   const res = await query(
     `SELECT u.id AS user_id, u.full_name, u.phone, u.account_id AS label, u.selected_location_id AS city
      FROM users u
-     WHERE u.role = 'customer'
-       AND (u.full_name ILIKE $1 OR COALESCE(u.phone, '') ILIKE $1 OR u.account_id ILIKE $1)
+     WHERE ${authoritativeIsCustomerSql('u')}
+       AND (u.full_name ILIKE $1 OR COALESCE(u.phone, '') ILIKE $1 OR u.account_id ILIKE $1 OR u.email ILIKE $1)
      ORDER BY u.created_at DESC
      LIMIT 25`,
     [search]
