@@ -50,7 +50,9 @@ export function FinanceClient() {
     totalCount: 0,
     verifiedLKR: 0,
     completedRevenueLKR: 0,
+    authorizedLKR: 0,
     pendingLKR: 0,
+    voidedCount: 0,
     refundedLKR: 0,
     failedCount: 0,
     commissionLKR: 0,
@@ -240,13 +242,15 @@ export function FinanceClient() {
 
         <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500">
-            <span>Pending Settlement</span>
+            <span>Authorized Holds & Cash Pending</span>
             <CreditCard className="h-4 w-4 text-amber-600" />
           </div>
           <p className="mt-2 text-2xl font-bold text-amber-700">
-            {formatLKR(summary.pendingLKR)}
+            {formatLKR(summary.authorizedLKR + summary.pendingLKR)}
           </p>
-          <p className="mt-1 text-xs text-slate-500">Awaiting gateway verification</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Hold {formatLKR(summary.authorizedLKR)} · Cash/Pending {formatLKR(summary.pendingLKR)} · Voided {formatNumber(summary.voidedCount)}
+          </p>
         </div>
       </div>
 
@@ -279,8 +283,10 @@ export function FinanceClient() {
         searchPlaceholder="Search booking ID, gateway reference, method, or customer..."
         filterTabs={[
           { value: 'all', label: 'All Payments' },
-          { value: 'verified', label: 'Verified' },
-          { value: 'pending', label: 'Pending' },
+          { value: 'authorized', label: 'Authorized (Hold)' },
+          { value: 'verified', label: 'Captured / Verified' },
+          { value: 'pending', label: 'Cash / Pending' },
+          { value: 'voided', label: 'Voided Holds' },
           { value: 'refunded', label: 'Refunded' },
           { value: 'failed', label: 'Failed' },
         ]}

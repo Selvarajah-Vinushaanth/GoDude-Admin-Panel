@@ -65,7 +65,9 @@ export async function listTransactions(params: {
       total_count: string;
       verified_lkr: string;
       completed_revenue_lkr: string;
+      authorized_lkr: string;
       pending_lkr: string;
+      voided_count: string;
       refunded_lkr: string;
       failed_count: string;
       commission_lkr: string;
@@ -73,13 +75,15 @@ export async function listTransactions(params: {
     }>(
       `SELECT
          COUNT(*)::text AS total_count,
-         COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status = 'verified'), 0)::text AS verified_lkr,
-         COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status = 'verified' AND b.status IN ('Completed', 'Delivered')), 0)::text AS completed_revenue_lkr,
+         COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status IN ('verified', 'captured')), 0)::text AS verified_lkr,
+         COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status IN ('verified', 'captured') AND b.status IN ('Completed', 'Delivered')), 0)::text AS completed_revenue_lkr,
+         COALESCE(SUM(COALESCE(pt.authorized_amount_lkr, pt.amount_lkr)) FILTER (WHERE pt.status = 'authorized'), 0)::text AS authorized_lkr,
          COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status = 'pending'), 0)::text AS pending_lkr,
+         COUNT(*) FILTER (WHERE pt.status = 'voided')::text AS voided_count,
          COALESCE(SUM(CASE WHEN pt.refund_amount_lkr > 0 THEN pt.refund_amount_lkr WHEN pt.status = 'refunded' THEN pt.amount_lkr ELSE 0 END), 0)::text AS refunded_lkr,
          COUNT(*) FILTER (WHERE pt.status = 'failed')::text AS failed_count,
-         COALESCE(SUM(b.platform_commission_lkr) FILTER (WHERE pt.status = 'verified' AND b.status IN ('Completed', 'Delivered')), 0)::text AS commission_lkr,
-         COALESCE(SUM(b.rider_earnings_lkr) FILTER (WHERE pt.status = 'verified' AND b.status IN ('Completed', 'Delivered')), 0)::text AS rider_earnings_lkr
+         COALESCE(SUM(b.platform_commission_lkr) FILTER (WHERE pt.status IN ('verified', 'captured') AND (b.status IN ('Completed', 'Delivered') OR b.payment_status = 'Cancellation Fee Captured')), 0)::text AS commission_lkr,
+         COALESCE(SUM(b.rider_earnings_lkr) FILTER (WHERE pt.status IN ('verified', 'captured') AND (b.status IN ('Completed', 'Delivered') OR b.payment_status = 'Cancellation Fee Captured')), 0)::text AS rider_earnings_lkr
        FROM payment_transactions pt
        JOIN bookings b ON b.id = pt.booking_id
        JOIN users u ON u.id = pt.user_id
@@ -115,7 +119,9 @@ export async function listTransactions(params: {
   const rowsRes = await query(
     `SELECT
        pt.id, pt.booking_id, pt.user_id, pt.method, pt.amount_lkr, pt.currency,
-       pt.gateway_ref, pt.status, pt.refund_amount_lkr, pt.refunded_at::text,
+       pt.gateway_ref, pt.status, pt.authorized_amount_lkr, pt.captured_amount_lkr,
+       pt.authorized_at::text, pt.captured_at::text, pt.voided_at::text, pt.lifecycle_note,
+       pt.refund_amount_lkr, pt.refunded_at::text,
        pt.created_at::text,
        b.service_type, b.status AS booking_status, b.title AS booking_title,
        b.platform_commission_lkr, b.rider_earnings_lkr, b.savings_earned_lkr,
@@ -139,7 +145,9 @@ export async function listTransactions(params: {
       totalCount: Number(s?.total_count ?? 0),
       verifiedLKR: Number(s?.verified_lkr ?? 0),
       completedRevenueLKR: Number(s?.completed_revenue_lkr ?? 0),
+      authorizedLKR: Number(s?.authorized_lkr ?? 0),
       pendingLKR: Number(s?.pending_lkr ?? 0),
+      voidedCount: Number(s?.voided_count ?? 0),
       refundedLKR: Number(s?.refunded_lkr ?? 0),
       failedCount: Number(s?.failed_count ?? 0),
       commissionLKR: Number(s?.commission_lkr ?? 0),

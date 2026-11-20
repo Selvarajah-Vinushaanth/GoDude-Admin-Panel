@@ -196,7 +196,7 @@ export async function getOverviewStats(): Promise<OverviewStats> {
     }>(
       `SELECT
          COUNT(*) FILTER (WHERE service_type IN ('Ride Booking', 'Flexible Ride'))::text AS total_rides,
-         COUNT(*) FILTER (WHERE service_type IN ('Ride Booking', 'Flexible Ride') AND status IN ('Searching', 'Rider Assigned', 'Arrived', 'On the Way'))::text AS active_rides,
+         COUNT(*) FILTER (WHERE service_type IN ('Ride Booking', 'Flexible Ride') AND status IN ('Searching', 'Rider Assigned', 'Arrived', 'On the Way', 'Waiting for Return', 'Return Scheduled'))::text AS active_rides,
          COUNT(*) FILTER (WHERE service_type IN ('Ride Booking', 'Flexible Ride') AND status = 'Completed')::text AS completed_rides,
          COUNT(*) FILTER (WHERE service_type IN ('Ride Booking', 'Flexible Ride') AND status = 'Cancelled')::text AS cancelled_rides,
          COUNT(*) FILTER (WHERE service_type = 'Food Delivery')::text AS total_food,
@@ -208,8 +208,8 @@ export async function getOverviewStats(): Promise<OverviewStats> {
          COUNT(*) FILTER (WHERE service_type = 'Parcel Delivery' AND status IN ('Delivered', 'Completed'))::text AS completed_parcels,
          COUNT(*) FILTER (WHERE service_type = 'Parcel Delivery' AND status IN ('Cancelled', 'Delivery Failed', 'Returned to Sender'))::text AS failed_parcels,
          COALESCE(SUM(total_paid_lkr) FILTER (WHERE status IN ('Completed', 'Delivered')), 0)::text AS completed_revenue_lkr,
-         COALESCE(SUM(platform_commission_lkr) FILTER (WHERE status IN ('Completed', 'Delivered')), 0)::text AS commission_lkr,
-         COALESCE(SUM(rider_earnings_lkr) FILTER (WHERE status IN ('Completed', 'Delivered')), 0)::text AS rider_earnings_lkr
+         COALESCE(SUM(platform_commission_lkr) FILTER (WHERE status IN ('Completed', 'Delivered') OR payment_status = 'Cancellation Fee Captured'), 0)::text AS commission_lkr,
+         COALESCE(SUM(rider_earnings_lkr) FILTER (WHERE status IN ('Completed', 'Delivered') OR payment_status = 'Cancellation Fee Captured'), 0)::text AS rider_earnings_lkr
        FROM bookings`
     ),
     query<{
@@ -220,8 +220,8 @@ export async function getOverviewStats(): Promise<OverviewStats> {
     }>(
       `SELECT
          COUNT(*)::text AS total_tx,
-         COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status = 'verified'), 0)::text AS verified_revenue_lkr,
-         COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status = 'verified' AND b.status NOT IN ('Completed', 'Delivered', 'Cancelled')), 0)::text AS in_flight_paid_lkr,
+         COALESCE(SUM(pt.amount_lkr) FILTER (WHERE pt.status IN ('verified', 'captured')), 0)::text AS verified_revenue_lkr,
+         COALESCE(SUM(COALESCE(pt.authorized_amount_lkr, pt.amount_lkr)) FILTER (WHERE pt.status IN ('authorized', 'pending') AND b.status NOT IN ('Completed', 'Delivered', 'Cancelled')), 0)::text AS in_flight_paid_lkr,
          COALESCE(SUM(CASE WHEN pt.refund_amount_lkr > 0 THEN pt.refund_amount_lkr WHEN pt.status = 'refunded' THEN pt.amount_lkr ELSE 0 END), 0)::text AS refunded_lkr
        FROM payment_transactions pt
        JOIN bookings b ON b.id = pt.booking_id`
@@ -270,7 +270,7 @@ export async function getOverviewStats(): Promise<OverviewStats> {
          service_type,
          COUNT(*)::text AS total,
          COUNT(*) FILTER (WHERE status IN ('Completed', 'Delivered'))::text AS completed,
-         COUNT(*) FILTER (WHERE status IN ('Searching', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Rider Assigned', 'Arrived', 'On the Way', 'Return Initiated'))::text AS active,
+         COUNT(*) FILTER (WHERE status IN ('Searching', 'Confirmed', 'Preparing', 'Ready for Pickup', 'Rider Assigned', 'Arrived', 'On the Way', 'Waiting for Return', 'Return Scheduled', 'Return Initiated'))::text AS active,
          COUNT(*) FILTER (WHERE status IN ('Cancelled', 'Delivery Failed', 'Returned to Sender'))::text AS cancelled,
          COALESCE(SUM(total_paid_lkr) FILTER (WHERE status IN ('Completed', 'Delivered')), 0)::text AS revenue_lkr
        FROM bookings
