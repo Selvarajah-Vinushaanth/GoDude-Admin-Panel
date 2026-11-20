@@ -7,6 +7,7 @@ import { Drawer } from '@/components/ui/Drawer';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/ToastProvider';
 import { formatDateTime, formatLKR, formatNumber } from '@/lib/format';
+import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh';
 
 interface TransactionRow {
   id: string;
@@ -114,6 +115,10 @@ export function FinanceClient() {
     const t = setTimeout(fetchList, 180);
     return () => clearTimeout(t);
   }, [fetchList]);
+
+  useRealtimeRefresh(['payments', 'bookings'], () => {
+    fetchList();
+  });
 
   async function inspectTx(id: string) {
     try {

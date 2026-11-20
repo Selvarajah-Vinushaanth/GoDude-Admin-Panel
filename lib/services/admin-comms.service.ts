@@ -261,6 +261,7 @@ export async function updateDeliveryConfigAction(
     minFeeLKR?: number;
     maxFeeLKR?: number;
     serviceFeeLKR?: number;
+    savingsPct?: number;
   }
 ) {
   const apiRes = await callGoDudeAdminApi(session, `/delivery-config`, {
@@ -278,6 +279,7 @@ export async function updateDeliveryConfigAction(
            min_fee_lkr = COALESCE($3, min_fee_lkr),
            max_fee_lkr = COALESCE($4, max_fee_lkr),
            service_fee_lkr = COALESCE($5, service_fee_lkr),
+           savings_pct = COALESCE($6, savings_pct),
            updated_at = NOW()
        WHERE id = 'default'`,
       [
@@ -286,6 +288,7 @@ export async function updateDeliveryConfigAction(
         payload.minFeeLKR ?? null,
         payload.maxFeeLKR ?? null,
         payload.serviceFeeLKR ?? null,
+        payload.savingsPct ?? null,
       ]
     );
   }
@@ -308,6 +311,7 @@ export async function updateParcelConfigAction(
     minDeliveryFeeLKR?: number;
     requirePickupOtp?: boolean;
     requireDeliveryOtp?: boolean;
+    savingsPct?: number;
   }
 ) {
   const apiRes = await callGoDudeAdminApi(session, `/parcel-config`, {
@@ -326,6 +330,7 @@ export async function updateParcelConfigAction(
            min_delivery_fee_lkr = COALESCE($4, min_delivery_fee_lkr),
            require_pickup_otp = COALESCE($5, require_pickup_otp),
            require_delivery_otp = COALESCE($6, require_delivery_otp),
+           savings_pct = COALESCE($7, savings_pct),
            updated_at = NOW()
        WHERE id = 'default'`,
       [
@@ -335,6 +340,7 @@ export async function updateParcelConfigAction(
         payload.minDeliveryFeeLKR ?? null,
         payload.requirePickupOtp ?? null,
         payload.requireDeliveryOtp ?? null,
+        payload.savingsPct ?? null,
       ]
     );
   }

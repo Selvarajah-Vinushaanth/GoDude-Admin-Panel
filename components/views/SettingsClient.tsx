@@ -21,6 +21,7 @@ interface DeliveryCfg {
   min_fee_lkr: number;
   max_fee_lkr: number;
   service_fee_lkr: number;
+  savings_pct?: number;
 }
 
 interface ParcelCfg {
@@ -30,6 +31,7 @@ interface ParcelCfg {
   min_delivery_fee_lkr: number;
   require_pickup_otp: boolean;
   require_delivery_otp: boolean;
+  savings_pct?: number;
 }
 
 interface AuditRow {
@@ -287,6 +289,22 @@ export function SettingsClient() {
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold"
                 />
               </label>
+              <label className="col-span-2 block">
+                <span className="text-slate-500">
+                  Customer Delivery Savings Reward (% of Delivery Fee — Wallet Credit)
+                </span>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="50"
+                  value={Number(delivery.savings_pct ?? 10)}
+                  onChange={(e) =>
+                    setDelivery({ ...delivery, savings_pct: Number(e.target.value) })
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold"
+                />
+              </label>
             </div>
             <button
               type="button"
@@ -299,6 +317,7 @@ export function SettingsClient() {
                   minFeeLKR: delivery.min_fee_lkr,
                   maxFeeLKR: delivery.max_fee_lkr,
                   serviceFeeLKR: delivery.service_fee_lkr,
+                  savingsPct: Number(delivery.savings_pct ?? 10),
                 })
               }
               className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
@@ -377,6 +396,20 @@ export function SettingsClient() {
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold"
                 />
               </label>
+              <label className="col-span-2 block">
+                <span className="text-slate-500">Parcel Customer Savings (% of Fare)</span>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  max="50"
+                  value={Number(parcel.savings_pct ?? 10)}
+                  onChange={(e) =>
+                    setParcel({ ...parcel, savings_pct: Number(e.target.value) })
+                  }
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold"
+                />
+              </label>
             </div>
             <div className="mt-3 flex flex-wrap gap-4">
               <label className="inline-flex items-center gap-2 font-medium text-slate-700">
@@ -410,6 +443,7 @@ export function SettingsClient() {
                   minDeliveryFeeLKR: parcel.min_delivery_fee_lkr,
                   requirePickupOtp: parcel.require_pickup_otp,
                   requireDeliveryOtp: parcel.require_delivery_otp,
+                  savingsPct: Number(parcel.savings_pct ?? 10),
                 })
               }
               className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"

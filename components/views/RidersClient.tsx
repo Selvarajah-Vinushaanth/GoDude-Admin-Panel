@@ -18,6 +18,7 @@ import { ActionConfirmDialog, Drawer } from '@/components/ui/Drawer';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/ToastProvider';
 import { formatDateShort, formatDateTime, formatLKR } from '@/lib/format';
+import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh';
 
 interface RiderRow {
   id: string;
@@ -152,6 +153,10 @@ export function RidersClient({
     const t = setTimeout(fetchList, 180);
     return () => clearTimeout(t);
   }, [fetchList]);
+
+  useRealtimeRefresh(['riders', 'bookings'], () => {
+    fetchList();
+  });
 
   async function openDetail(id: string) {
     setSelectedId(id);

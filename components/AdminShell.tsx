@@ -23,6 +23,7 @@ import {
   Server,
 } from 'lucide-react';
 import type { GoDudeBackendHealth } from '@/lib/godude-api';
+import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh';
 
 interface AdminShellProps {
   admin: {
@@ -102,12 +103,19 @@ export function AdminShell({ admin, alerts, dbError, vmHealth, children }: Admin
   const [notifOpen, setNotifOpen] = useState(false);
   const [quickQuery, setQuickQuery] = useState('');
   const [loggingOut, setLoggingOut] = useState(false);
+  const [liveAlerts, setLiveAlerts] = useState(alerts);
+
+  useRealtimeRefresh(['restaurants', 'riders', 'bookings', 'notifications'], (evt) => {
+    if (evt.alerts) {
+      setLiveAlerts(evt.alerts);
+    }
+  });
 
   const meta = PAGE_TITLES[pathname] ?? {
     title: 'GoDude Admin',
     subtitle: 'Enterprise Operations Console',
   };
-  const totalPendingAlerts = alerts.pendingRestaurants + alerts.unverifiedRiders;
+  const totalPendingAlerts = liveAlerts.pendingRestaurants + liveAlerts.unverifiedRiders;
 
   async function handleLogout() {
     setLoggingOut(true);

@@ -23,7 +23,7 @@ export async function listRides(params: {
   const clauses: string[] = [`b.service_type IN ('Ride Booking', 'Flexible Ride')`];
 
   if (params.status === 'active') {
-    clauses.push(`b.status IN ('Searching', 'Rider Assigned', 'Arrived', 'On the Way')`);
+    clauses.push(`b.status IN ('Searching', 'Rider Assigned', 'Arrived', 'On the Way', 'Waiting for Return', 'Return Scheduled')`);
   } else if (params.status && params.status !== 'all') {
     values.push(params.status);
     clauses.push(`b.status = $${values.length}`);
@@ -69,7 +69,7 @@ export async function listRides(params: {
     query<{ total: string; active: string; completed: string; cancelled: string }>(
       `SELECT
          COUNT(*)::text AS total,
-         COUNT(*) FILTER (WHERE status IN ('Searching', 'Rider Assigned', 'Arrived', 'On the Way'))::text AS active,
+         COUNT(*) FILTER (WHERE status IN ('Searching', 'Rider Assigned', 'Arrived', 'On the Way', 'Waiting for Return', 'Return Scheduled'))::text AS active,
          COUNT(*) FILTER (WHERE status = 'Completed')::text AS completed,
          COUNT(*) FILTER (WHERE status = 'Cancelled')::text AS cancelled
        FROM bookings WHERE service_type IN ('Ride Booking', 'Flexible Ride')`
@@ -79,6 +79,10 @@ export async function listRides(params: {
   const listValues = [...values, params.pageSize, offset];
   const rowsRes = await query(
     `SELECT b.id, b.service_type, b.booking_mode, COALESCE(b.trip_type, 'one_way') AS trip_type,
+            COALESCE(b.return_mode, 'wait_and_return') AS return_mode,
+            COALESCE(b.current_leg, 'outbound') AS current_leg,
+            COALESCE(b.wait_minutes, 0) AS wait_minutes,
+            COALESCE(b.wait_fee_lkr, 0) AS wait_fee_lkr,
             b.title, b.subtitle, b.status,
             b.vehicle_type, b.payment_method, b.payment_status,
             b.pickup_address, b.destination_address,
@@ -345,6 +349,7 @@ export async function getBookingDetail(bookingId: string) {
                 b.restaurant_accepted_at::text, b.ready_for_pickup_at::text, b.picked_up_at::text,
                 c.full_name AS customer_name, c.phone AS customer_phone, c.email AS customer_email, c.account_id AS customer_account_id,
                 d.vehicle_type AS driver_vehicle_type, d.vehicle_name AS driver_vehicle_name, d.plate_number AS driver_plate,
+                d.current_lat::float8 AS driver_lat, d.current_lng::float8 AS driver_lng,
                 du.full_name AS driver_name, du.phone AS driver_phone,
                 r.name AS restaurant_name, r.city AS restaurant_city, r.address AS restaurant_address, r.contact_phone AS restaurant_phone,
                 (SELECT COUNT(*) FROM ride_gps_breadcrumbs rgb WHERE rgb.booking_id = b.id)::int AS breadcrumb_count

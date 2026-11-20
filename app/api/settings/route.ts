@@ -25,6 +25,7 @@ const patchSchema = z.discriminatedUnion('section', [
     minFeeLKR: z.number().int().min(0).max(1000).optional(),
     maxFeeLKR: z.number().int().min(50).max(5000).optional(),
     serviceFeeLKR: z.number().int().min(0).max(500).optional(),
+    savingsPct: z.number().min(0).max(50).optional(),
   }),
   z.object({
     section: z.literal('parcel'),
@@ -34,6 +35,7 @@ const patchSchema = z.discriminatedUnion('section', [
     minDeliveryFeeLKR: z.number().int().min(50).max(5000).optional(),
     requirePickupOtp: z.boolean().optional(),
     requireDeliveryOtp: z.boolean().optional(),
+    savingsPct: z.number().min(0).max(50).optional(),
   }),
 ]);
 

@@ -8,6 +8,7 @@ import { Drawer } from '@/components/ui/Drawer';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/ToastProvider';
 import { formatDateShort, formatDateTime, formatLKR } from '@/lib/format';
+import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh';
 
 interface CustomerRow {
   id: string;
@@ -186,6 +187,10 @@ export function CustomersClient({
     const t = setTimeout(fetchList, 180);
     return () => clearTimeout(t);
   }, [fetchList]);
+
+  useRealtimeRefresh(['bookings', 'riders', 'restaurants'], () => {
+    fetchList();
+  });
 
   async function openDetail(id: string) {
     setSelectedId(id);

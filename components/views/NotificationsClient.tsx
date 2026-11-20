@@ -6,6 +6,7 @@ import { DataTable, TableColumn } from '@/components/ui/DataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/ToastProvider';
 import { formatDateTime } from '@/lib/format';
+import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh';
 
 interface NotificationRow {
   id: string;
@@ -87,6 +88,10 @@ export function NotificationsClient() {
     const t = setTimeout(fetchList, 180);
     return () => clearTimeout(t);
   }, [fetchList]);
+
+  useRealtimeRefresh(['notifications'], () => {
+    fetchList();
+  });
 
   useEffect(() => {
     let active = true;

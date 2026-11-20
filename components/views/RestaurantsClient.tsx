@@ -15,9 +15,11 @@ import {
 } from 'lucide-react';
 import { DataTable, TableColumn } from '@/components/ui/DataTable';
 import { ActionConfirmDialog, Drawer } from '@/components/ui/Drawer';
+import { GoogleRouteMap } from '@/components/ui/GoogleRouteMap';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/ToastProvider';
 import { formatDateShort, formatDateTime, formatLKR } from '@/lib/format';
+import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh';
 
 interface RestaurantRow {
   id: string;
@@ -195,6 +197,13 @@ export function RestaurantsClient({
     },
     [pushToast]
   );
+
+  useRealtimeRefresh(['restaurants', 'bookings'], () => {
+    fetchList();
+    if (selectedId) {
+      void openDetail(selectedId);
+    }
+  });
 
   useEffect(() => {
     if (!initialInspect) return;
@@ -537,6 +546,14 @@ export function RestaurantsClient({
                         <MapPin className="h-3 w-3 text-slate-400" />
                         {detail.restaurant.lat.toFixed(4)}, {detail.restaurant.lng.toFixed(4)}
                       </dd>
+                    </div>
+                    <div className="col-span-2 pt-1">
+                      <GoogleRouteMap
+                        centerLat={Number(detail.restaurant.lat)}
+                        centerLng={Number(detail.restaurant.lng)}
+                        originLabel={detail.restaurant.name}
+                        heightClassName="h-44"
+                      />
                     </div>
                     <div>
                       <dt className="text-slate-400">Coverage & Min Order</dt>

@@ -15,15 +15,21 @@ import {
 } from 'lucide-react';
 import { DataTable, FilterTabOption, TableColumn } from '@/components/ui/DataTable';
 import { ActionConfirmDialog, Drawer } from '@/components/ui/Drawer';
+import { GoogleRouteMap } from '@/components/ui/GoogleRouteMap';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { useToast } from '@/components/ui/ToastProvider';
 import { formatDateTime, formatLKR } from '@/lib/format';
+import { useRealtimeRefresh } from '@/lib/useRealtimeRefresh';
 
 interface BookingListRow {
   id: string;
   service_type?: string;
   booking_mode?: string;
   trip_type?: 'one_way' | 'return';
+  return_mode?: 'wait_and_return' | 'scheduled_return';
+  current_leg?: string;
+  wait_minutes?: number;
+  wait_fee_lkr?: number;
   title: string;
   subtitle?: string;
   status: string;
@@ -68,6 +74,14 @@ interface BookingDetailPayload {
     driver_phone?: string | null;
     driver_vehicle_name?: string | null;
     driver_plate?: string | null;
+    driver_lat?: number | null;
+    driver_lng?: number | null;
+    pickup_lat?: number | null;
+    pickup_lng?: number | null;
+    dest_lat?: number | null;
+    dest_lng?: number | null;
+    route_polyline?: Array<{ lat: number; lng: number }>;
+    return_route_polyline?: Array<{ lat: number; lng: number }>;
     restaurant_address?: string | null;
     restaurant_phone?: string | null;
     subtotal_lkr: number;
@@ -213,7 +227,7 @@ export function BookingsOpsClient({
     return () => clearTimeout(t);
   }, [fetchList]);
 
-  async function openDetail(id: string) {
+  const openDetail = useCallback(async (id: string) => {
     setSelectedId(id);
     setDetailLoading(true);
     try {
@@ -226,6 +240,31 @@ export function BookingsOpsClient({
       setSelectedId(null);
     } finally {
       setDetailLoading(false);
+    }
+  }, [pushToast]);
+
+  useRealtimeRefresh(['bookings'], () => {
+    fetchList();
+    if (selectedId) {
+      void openDetail(selectedId);
+    }
+  });
+
+  async function handleDispatchReturnLeg() {
+    if (!selectedId) return;
+    setActionBusy(true);
+    try {
+      const res = await fetch(`/api/bookings/${encodeURIComponent(selectedId)}/dispatch-return`, {
+        method: 'POST',
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Return dispatch failed');
+      pushToast('Return Leg Dispatched', `Driver dispatch triggered for return leg of ${selectedId}.`, 'success');
+      await Promise.all([openDetail(selectedId), fetchList()]);
+    } catch (err) {
+      pushToast('Dispatch Failed', err instanceof Error ? err.message : 'Failed', 'error');
+    } finally {
+      setActionBusy(false);
     }
   }
 
@@ -278,6 +317,8 @@ export function BookingsOpsClient({
           { value: 'active', label: 'Active', count: counts.active },
           { value: 'Searching', label: 'Searching' },
           { value: 'On the Way', label: 'In Progress' },
+          { value: 'Waiting for Return', label: 'Waiting Return' },
+          { value: 'Return Scheduled', label: 'Return Scheduled' },
           { value: 'Completed', label: 'Completed', count: counts.completed },
           { value: 'Cancelled', label: 'Cancelled', count: counts.cancelled },
         ]
@@ -515,6 +556,19 @@ export function BookingsOpsClient({
                       <RefreshCw className="h-3.5 w-3.5" /> Reassign Rider
                     </button>
                   )}
+                  {mode === 'rides' &&
+                    detail.booking.trip_type === 'return' &&
+                    (detail.booking.status === 'Waiting for Return' ||
+                      detail.booking.status === 'Return Scheduled') && (
+                      <button
+                        type="button"
+                        disabled={actionBusy}
+                        onClick={handleDispatchReturnLeg}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" /> Dispatch Return Leg Now
+                      </button>
+                    )}
                   <button
                     type="button"
                     onClick={() => setCancelOpen(true)}
@@ -584,7 +638,14 @@ export function BookingsOpsClient({
               </div>
               {detail.booking.trip_type === 'return' && (
                 <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5 text-blue-900">
-                  <p className="font-bold">⇄ Return Trip Journey</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-bold">
+                      ⇄ Return Trip Journey ({detail.booking.return_mode === 'scheduled_return' ? 'Scheduled Return' : 'Wait & Return'})
+                    </p>
+                    <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">
+                      Leg: {detail.booking.current_leg || 'outbound'}
+                    </span>
+                  </div>
                   <p className="mt-1">
                     Return Leg:{' '}
                     {detail.booking.return_pickup_address || detail.booking.destination_address} →{' '}
@@ -595,8 +656,30 @@ export function BookingsOpsClient({
                     {formatLKR(detail.booking.outbound_fare_lkr ?? 0)}) · Return:{' '}
                     {detail.booking.return_distance_km ?? 0} km (
                     {formatLKR(detail.booking.return_fare_lkr ?? 0)})
+                    {(detail.booking.wait_minutes ?? 0) > 0
+                      ? ` · Wait: ${detail.booking.wait_minutes} min (${formatLKR(detail.booking.wait_fee_lkr ?? 0)})`
+                      : ''}
                   </p>
+                  {detail.booking.return_scheduled_at && (
+                    <p className="mt-1 text-[11px] font-semibold text-blue-800">
+                      Scheduled Return At: {formatDateTime(detail.booking.return_scheduled_at)}
+                    </p>
+                  )}
                 </div>
+              )}
+              {detail.booking.pickup_lat != null && detail.booking.pickup_lng != null && (
+                <GoogleRouteMap
+                  centerLat={Number(detail.booking.pickup_lat)}
+                  centerLng={Number(detail.booking.pickup_lng)}
+                  originLabel={detail.booking.pickup_address}
+                  destLat={detail.booking.dest_lat != null ? Number(detail.booking.dest_lat) : null}
+                  destLng={detail.booking.dest_lng != null ? Number(detail.booking.dest_lng) : null}
+                  destLabel={detail.booking.destination_address}
+                  driverLat={detail.booking.driver_lat != null ? Number(detail.booking.driver_lat) : null}
+                  driverLng={detail.booking.driver_lng != null ? Number(detail.booking.driver_lng) : null}
+                  polyline={Array.isArray(detail.booking.route_polyline) ? detail.booking.route_polyline : []}
+                  returnPolyline={Array.isArray(detail.booking.return_route_polyline) ? detail.booking.return_route_polyline : []}
+                />
               )}
               <div className="flex flex-wrap gap-4 border-t border-slate-100 pt-2 text-slate-500">
                 <span>Est. Distance: {detail.booking.estimated_distance_km} km</span>
