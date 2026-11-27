@@ -181,7 +181,7 @@ function escapeCsvCell(value: string | number | null | undefined): string {
   return raw;
 }
 
-function formatColomboDateIso(value: string | null | undefined): string {
+export function formatColomboDateIso(value: string | null | undefined): string {
   if (!value) return '';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
@@ -256,6 +256,11 @@ export function buildRidesAccountingCsv(rows: RideAccountingExportRow[]): string
   }
 
   return `\uFEFF${lines.join('\r\n')}\r\n`;
+}
+
+/** Colombo calendar day of a ride, matching the dashboard's created_at date filter. */
+export function rideExportDay(row: RideAccountingExportRow): string {
+  return formatColomboDateIso(row.created_at);
 }
 
 export async function listRidesForExport(params: {

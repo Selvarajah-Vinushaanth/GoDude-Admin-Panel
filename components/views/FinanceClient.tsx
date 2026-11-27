@@ -319,7 +319,14 @@ export function FinanceClient() {
               className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
             >
               <Download className="h-3.5 w-3.5" />
-              Export Rides CSV
+              {dateFrom && dateTo && dateTo >= dateFrom
+                ? `Export Rides ZIP (${
+                    Math.round(
+                      (Date.parse(`${dateTo}T00:00:00Z`) - Date.parse(`${dateFrom}T00:00:00Z`)) /
+                        86_400_000
+                    ) + 1
+                  } daily CSVs)`
+                : 'Export Rides CSV'}
             </a>
           </div>
         }
