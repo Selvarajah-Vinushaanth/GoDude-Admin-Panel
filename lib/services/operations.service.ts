@@ -373,7 +373,7 @@ export async function listFoodOrders(params: {
             b.payment_method, b.payment_status, b.destination_address,
             b.subtotal_lkr, b.delivery_or_service_fee_lkr,
             COALESCE(b.service_fee_lkr, 0) AS service_fee_lkr,
-            COALESCE(b.savings_earned_lkr, ROUND(COALESCE(b.delivery_or_service_fee_lkr, 0) * 0.10)::int) AS savings_earned_lkr,
+            COALESCE(b.savings_earned_lkr, ROUND(COALESCE(b.delivery_or_service_fee_lkr, 0) * COALESCE((SELECT savings_pct FROM delivery_config WHERE id = 'default' LIMIT 1), 10) / 100.0)::int) AS savings_earned_lkr,
             b.discount_lkr,
             b.total_paid_lkr, b.estimated_prep_mins, b.items_summary,
             b.created_at::text, b.completed_at::text,
