@@ -654,7 +654,7 @@ export function CustomersClient({
 
                 <div>
                   <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    <Wallet className="h-3.5 w-3.5" /> 10% Savings Ledger
+                    <Wallet className="h-3.5 w-3.5" /> Savings Ledger
                   </h4>
                   <div className="mt-2 space-y-2">
                     {detail.savingsLedger.length === 0 ? (

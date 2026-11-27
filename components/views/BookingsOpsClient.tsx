@@ -851,7 +851,13 @@ export function BookingsOpsClient({
                       </div>
                     )}
                     <div className="flex justify-between text-emerald-700">
-                      <span>10% Savings Credit (10% of Delivery Fee)</span>
+                      <span>
+                        {(() => {
+                          const fee = Number(detail.booking.delivery_or_service_fee_lkr) || 0;
+                          const pct = fee > 0 ? Math.round((Number(detail.booking.savings_earned_lkr) / fee) * 1000) / 10 : 0;
+                          return `${pct}% Savings Credit (${pct}% of Delivery Fee)`;
+                        })()}
+                      </span>
                       <span>{formatLKR(detail.booking.savings_earned_lkr)}</span>
                     </div>
                   </>
