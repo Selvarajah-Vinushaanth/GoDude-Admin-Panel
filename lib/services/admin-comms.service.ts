@@ -169,37 +169,46 @@ export async function sendAdminInstruction(
 }
 
 export async function getSettingsSnapshot() {
-  const [vehiclesRes, deliveryCfgRes, zonesRes, parcelCfgRes, auditRes] = await Promise.all([
-    query(
-      `SELECT id, name, sinhala_tamil_sub, base_fare_lkr, per_km_rate_lkr, per_min_wait_lkr,
-              parcel_handling_fee_lkr, eta_mins, surge_multiplier::float8 AS surge_multiplier,
-              max_parcel_weight_kg::float8 AS max_parcel_weight_kg, supports_parcel
-       FROM vehicle_types
-       ORDER BY base_fare_lkr ASC`
-    ),
-    query(`SELECT * FROM delivery_config WHERE id = 'default' LIMIT 1`),
-    query(
-      `SELECT id, name, city, center_lat, center_lng, radius_km::float8 AS radius_km,
-              base_fee_lkr, per_km_fee_lkr, is_active
-       FROM delivery_zones
-       ORDER BY city, name`
-    ),
-    query(`SELECT * FROM parcel_config WHERE id = 'default' LIMIT 1`),
-    query(
-      `SELECT a.id, a.action, a.target_type, a.target_id, a.reason, a.details, a.created_at::text,
-              COALESCE(u.full_name, 'Platform Admin') AS admin_name
-       FROM admin_audit_logs a
-       LEFT JOIN users u ON u.id = a.admin_user_id
-       ORDER BY a.created_at DESC
-       LIMIT 40`
-    ),
-  ]);
+  const [vehiclesRes, deliveryCfgRes, zonesRes, parcelCfgRes, rideCfgRes, auditRes] =
+    await Promise.all([
+      query(
+        `SELECT id, name, sinhala_tamil_sub, base_fare_lkr, per_km_rate_lkr, per_min_wait_lkr,
+                parcel_handling_fee_lkr, eta_mins, surge_multiplier::float8 AS surge_multiplier,
+                max_parcel_weight_kg::float8 AS max_parcel_weight_kg, supports_parcel
+         FROM vehicle_types
+         ORDER BY base_fare_lkr ASC`
+      ),
+      query(`SELECT * FROM delivery_config WHERE id = 'default' LIMIT 1`),
+      query(
+        `SELECT id, name, city, center_lat, center_lng, radius_km::float8 AS radius_km,
+                base_fee_lkr, per_km_fee_lkr, is_active
+         FROM delivery_zones
+         ORDER BY city, name`
+      ),
+      query(`SELECT * FROM parcel_config WHERE id = 'default' LIMIT 1`),
+      query(
+        `SELECT id, platform_commission_pct::float8 AS platform_commission_pct,
+                savings_pct::float8 AS savings_pct, updated_at::text
+         FROM ride_config WHERE id = 'default' LIMIT 1`
+      ).catch(() => ({
+        rows: [{ id: 'default', platform_commission_pct: 15, savings_pct: 10, updated_at: null }],
+      })),
+      query(
+        `SELECT a.id, a.action, a.target_type, a.target_id, a.reason, a.details, a.created_at::text,
+                COALESCE(u.full_name, 'Platform Admin') AS admin_name
+         FROM admin_audit_logs a
+         LEFT JOIN users u ON u.id = a.admin_user_id
+         ORDER BY a.created_at DESC
+         LIMIT 40`
+      ),
+    ]);
 
   return {
     vehicles: vehiclesRes.rows,
     deliveryConfig: deliveryCfgRes.rows[0] ?? null,
     deliveryZones: zonesRes.rows,
     parcelConfig: parcelCfgRes.rows[0] ?? null,
+    rideConfig: rideCfgRes.rows[0] ?? null,
     auditLogs: auditRes.rows,
   };
 }
@@ -348,6 +357,40 @@ export async function updateParcelConfigAction(
     adminUserId: session.dbUserId,
     action: 'update_parcel_config',
     targetType: 'parcel_config',
+    targetId: 'default',
+    details: payload,
+  });
+  return { ok: true };
+}
+
+export async function updateRideConfigAction(
+  session: AdminSession,
+  payload: {
+    platformCommissionPct?: number;
+    savingsPct?: number;
+  }
+) {
+  const apiRes = await callGoDudeAdminApi(session, `/ride-config`, {
+    method: 'PATCH',
+    body: payload,
+  });
+  if (apiRes.reached && !apiRes.ok) {
+    throw new Error(apiRes.error || 'Failed to update ride configuration');
+  }
+  if (!apiRes.reached) {
+    await query(
+      `UPDATE ride_config
+       SET platform_commission_pct = COALESCE($1, platform_commission_pct),
+           savings_pct = COALESCE($2, savings_pct),
+           updated_at = NOW()
+       WHERE id = 'default'`,
+      [payload.platformCommissionPct ?? null, payload.savingsPct ?? null]
+    );
+  }
+  await recordAuditLog({
+    adminUserId: session.dbUserId,
+    action: 'update_ride_config',
+    targetType: 'ride_config',
     targetId: 'default',
     details: payload,
   });

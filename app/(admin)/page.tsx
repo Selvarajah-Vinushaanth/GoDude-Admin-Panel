@@ -10,6 +10,7 @@ import {
   ArrowUpRight,
   AlertCircle,
   Activity,
+  Download,
 } from 'lucide-react';
 import { ServiceTrendsChart } from '@/components/Charts';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -285,7 +286,7 @@ export default async function DashboardPage() {
               </p>
             </div>
             <div className="rounded-xl bg-slate-50 p-2.5">
-              <p className="text-slate-500">10% Savings Credits</p>
+              <p className="text-slate-500">Customer Savings Credits</p>
               <p className="mt-0.5 font-bold text-emerald-700">
                 {formatLKR(kpis.savingsCreditedLKR)}
               </p>
@@ -412,7 +413,14 @@ export default async function DashboardPage() {
             <h3 className="text-sm font-semibold text-slate-900">Recent Platform Activity</h3>
             <p className="text-xs text-slate-500">Latest bookings across Rides, Food & Parcels</p>
           </div>
-          <div className="flex gap-3 text-xs font-semibold text-blue-600">
+          <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-blue-600">
+            <a
+              href="/api/rides/export"
+              className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700 hover:bg-emerald-100"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export Rides CSV
+            </a>
             <Link href="/rides" className="hover:underline">Rides</Link>
             <Link href="/food-orders" className="hover:underline">Food</Link>
             <Link href="/parcels" className="hover:underline">Parcels</Link>

@@ -8,9 +8,23 @@ import {
   recordAuditLog,
 } from './shared';
 
-export async function listRides(params: {
-  page: number;
-  pageSize: number;
+export const RIDE_ACCOUNTING_CSV_HEADERS = [
+  'Customer ID',
+  'Customer Name',
+  'Contact No',
+  'Vehile No',
+  'Ride Date',
+  'Ride Starting Time',
+  'Ending Time',
+  'Duration',
+  'Distance',
+  'Starting Place',
+  'Ending Place',
+  'Trip Fee',
+  'Commission',
+] as const;
+
+function buildRidesQueryParts(params: {
   search?: string;
   status?: string;
   dateFrom?: string;
@@ -18,12 +32,13 @@ export async function listRides(params: {
   sort?: string;
   order?: 'ASC' | 'DESC';
 }) {
-  const offset = (params.page - 1) * params.pageSize;
   const values: unknown[] = [];
   const clauses: string[] = [`b.service_type IN ('Ride Booking', 'Flexible Ride')`];
 
   if (params.status === 'active') {
-    clauses.push(`b.status IN ('Searching', 'Rider Assigned', 'Arrived', 'On the Way', 'Waiting for Return', 'Return Scheduled')`);
+    clauses.push(
+      `b.status IN ('Searching', 'Rider Assigned', 'Arrived', 'On the Way', 'Waiting for Return', 'Return Scheduled')`
+    );
   } else if (params.status && params.status !== 'all') {
     values.push(params.status);
     clauses.push(`b.status = $${values.length}`);
@@ -55,6 +70,22 @@ export async function listRides(params: {
     },
     'b.created_at'
   );
+
+  return { values, whereSql, orderBy };
+}
+
+export async function listRides(params: {
+  page: number;
+  pageSize: number;
+  search?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sort?: string;
+  order?: 'ASC' | 'DESC';
+}) {
+  const offset = (params.page - 1) * params.pageSize;
+  const { values, whereSql, orderBy } = buildRidesQueryParts(params);
 
   const [countRes, statsRes] = await Promise.all([
     query<{ count: string }>(
@@ -88,11 +119,13 @@ export async function listRides(params: {
             b.pickup_address, b.destination_address,
             b.return_pickup_address, b.return_destination_address, b.return_scheduled_at::text,
             b.estimated_distance_km::float8 AS distance_km,
+            COALESCE(b.actual_distance_km, 0)::float8 AS actual_distance_km,
+            COALESCE(b.elapsed_seconds, 0) AS elapsed_seconds,
             COALESCE(b.outbound_distance_km, b.estimated_distance_km)::float8 AS outbound_distance_km,
             COALESCE(b.return_distance_km, 0)::float8 AS return_distance_km,
             COALESCE(b.outbound_fare_lkr, b.total_paid_lkr) AS outbound_fare_lkr,
             COALESCE(b.return_fare_lkr, 0) AS return_fare_lkr,
-            b.total_paid_lkr, b.rider_earnings_lkr, b.platform_commission_lkr,
+            b.total_paid_lkr, b.rider_earnings_lkr, b.platform_commission_lkr, b.savings_earned_lkr,
             b.created_at::text, b.started_at::text, b.completed_at::text,
             c.id AS customer_id, c.account_id AS customer_account_id, c.full_name AS customer_name, c.phone AS customer_phone,
             d.id AS driver_id, du.account_id AS driver_account_id, du.full_name AS driver_name, d.plate_number
@@ -119,6 +152,148 @@ export async function listRides(params: {
       cancelled: Number(s?.cancelled ?? 0),
     },
   };
+}
+
+export interface RideAccountingExportRow {
+  id: string;
+  customer_id: string;
+  customer_account_id: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  plate_number: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+  elapsed_seconds: number;
+  actual_distance_km: number;
+  estimated_distance_km: number;
+  pickup_address: string | null;
+  destination_address: string | null;
+  total_paid_lkr: number;
+  platform_commission_lkr: number;
+}
+
+function escapeCsvCell(value: string | number | null | undefined): string {
+  const raw = value === null || value === undefined ? '' : String(value);
+  if (/[",\n\r]/.test(raw)) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
+function formatColomboDateIso(value: string | null | undefined): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Colombo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d);
+}
+
+function formatColomboTime24(value: string | null | undefined): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Colombo',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(d);
+}
+
+function formatDurationHms(
+  elapsedSeconds: number,
+  startedAt: string | null | undefined,
+  completedAt: string | null | undefined
+): string {
+  let secs = Math.max(0, Math.round(Number(elapsedSeconds) || 0));
+  if (secs === 0 && startedAt && completedAt) {
+    const startMs = new Date(startedAt).getTime();
+    const endMs = new Date(completedAt).getTime();
+    if (!Number.isNaN(startMs) && !Number.isNaN(endMs) && endMs > startMs) {
+      secs = Math.round((endMs - startMs) / 1000);
+    }
+  }
+  if (secs <= 0) return '';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return [h, m, s].map((v) => String(v).padStart(2, '0')).join(':');
+}
+
+export function buildRidesAccountingCsv(rows: RideAccountingExportRow[]): string {
+  const lines: string[] = [RIDE_ACCOUNTING_CSV_HEADERS.map(escapeCsvCell).join(',')];
+
+  for (const r of rows) {
+    const startTs = r.started_at || r.created_at;
+    const rawDist =
+      Number(r.actual_distance_km) > 0
+        ? Number(r.actual_distance_km)
+        : Number(r.estimated_distance_km ?? 0);
+    const distanceStr = rawDist > 0 ? rawDist.toFixed(2) : '0.00';
+
+    const cols = [
+      r.customer_account_id || r.customer_id,
+      r.customer_name || '',
+      r.customer_phone || '',
+      r.plate_number || '',
+      formatColomboDateIso(startTs),
+      formatColomboTime24(startTs),
+      formatColomboTime24(r.completed_at),
+      formatDurationHms(r.elapsed_seconds, r.started_at, r.completed_at),
+      distanceStr,
+      r.pickup_address || '',
+      r.destination_address || '',
+      Number(r.total_paid_lkr ?? 0),
+      Number(r.platform_commission_lkr ?? 0),
+    ];
+    lines.push(cols.map(escapeCsvCell).join(','));
+  }
+
+  return `\uFEFF${lines.join('\r\n')}\r\n`;
+}
+
+export async function listRidesForExport(params: {
+  search?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  sort?: string;
+  order?: 'ASC' | 'DESC';
+}): Promise<RideAccountingExportRow[]> {
+  const { values, whereSql, orderBy } = buildRidesQueryParts(params);
+  const res = await query<RideAccountingExportRow>(
+    `SELECT b.id,
+            c.id AS customer_id,
+            c.account_id AS customer_account_id,
+            c.full_name AS customer_name,
+            c.phone AS customer_phone,
+            d.plate_number,
+            b.created_at::text,
+            b.started_at::text,
+            b.completed_at::text,
+            COALESCE(b.elapsed_seconds, 0)::int AS elapsed_seconds,
+            COALESCE(b.actual_distance_km, 0)::float8 AS actual_distance_km,
+            COALESCE(b.estimated_distance_km, 0)::float8 AS estimated_distance_km,
+            b.pickup_address,
+            b.destination_address,
+            COALESCE(b.total_paid_lkr, 0)::int AS total_paid_lkr,
+            COALESCE(b.platform_commission_lkr, 0)::int AS platform_commission_lkr
+     FROM bookings b
+     JOIN users c ON c.id = b.customer_id
+     LEFT JOIN drivers d ON d.id = b.driver_id
+     LEFT JOIN users du ON du.id = d.user_id
+     ${whereSql}
+     ${orderBy}
+     LIMIT 10000`,
+    values
+  );
+  return res.rows;
 }
 
 export async function listFoodOrders(params: {

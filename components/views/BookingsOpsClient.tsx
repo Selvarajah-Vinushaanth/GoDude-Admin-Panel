@@ -12,6 +12,7 @@ import {
   User,
   Bike,
   AlertTriangle,
+  Download,
 } from 'lucide-react';
 import { DataTable, FilterTabOption, TableColumn } from '@/components/ui/DataTable';
 import { ActionConfirmDialog, Drawer } from '@/components/ui/Drawer';
@@ -49,6 +50,7 @@ interface BookingListRow {
   total_paid_lkr: number;
   rider_earnings_lkr?: number;
   platform_commission_lkr?: number;
+  savings_earned_lkr?: number;
   created_at: string;
   customer_id?: string;
   customer_account_id?: string;
@@ -190,6 +192,14 @@ export function BookingsOpsClient({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [reassignOpen, setReassignOpen] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
+
+  const buildRidesExportUrl = () => {
+    const qs = new URLSearchParams({ status: statusFilter, sort, order });
+    if (search.trim()) qs.set('search', search.trim());
+    if (dateFrom) qs.set('dateFrom', dateFrom);
+    if (dateTo) qs.set('dateTo', dateTo);
+    return `/api/rides/export?${qs.toString()}`;
+  };
 
   const endpoint =
     mode === 'rides' ? '/api/rides' : mode === 'food' ? '/api/food-orders' : '/api/parcels';
@@ -430,13 +440,22 @@ export function BookingsOpsClient({
     },
     {
       key: 'total_paid_lkr',
-      header: 'Amount & Pay',
+      header: mode === 'rides' ? 'Fee / Comm. / Savings' : 'Amount & Pay',
       sortKey: 'total_paid_lkr',
       align: 'right',
       render: (r) => (
         <div className="text-right text-xs">
           <p className="font-semibold text-slate-900">{formatLKR(r.total_paid_lkr)}</p>
-          <p className="text-slate-500">{r.payment_method}</p>
+          {mode === 'rides' ? (
+            <p className="text-[11px] text-slate-500">
+              Comm: {formatLKR(r.platform_commission_lkr ?? 0)} · Sav:{' '}
+              <span className="font-medium text-emerald-700">
+                {formatLKR(r.savings_earned_lkr ?? 0)}
+              </span>
+            </p>
+          ) : (
+            <p className="text-slate-500">{r.payment_method}</p>
+          )}
         </div>
       ),
     },
@@ -480,6 +499,17 @@ export function BookingsOpsClient({
         showDateFilter
         dateFrom={dateFrom}
         dateTo={dateTo}
+        extraControls={
+          mode === 'rides' ? (
+            <a
+              href={buildRidesExportUrl()}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export Accounting CSV
+            </a>
+          ) : undefined
+        }
         sort={sort}
         order={order}
         onSearchChange={(val) => {
@@ -833,6 +863,12 @@ export function BookingsOpsClient({
                         detail.booking.delivery_or_service_fee_lkr + detail.booking.service_fee_lkr
                       )}
                     </span>
+                  </div>
+                )}
+                {mode !== 'food' && (
+                  <div className="flex justify-between text-emerald-700">
+                    <span>Customer Savings Reward</span>
+                    <span>{formatLKR(detail.booking.savings_earned_lkr)}</span>
                   </div>
                 )}
                 {detail.booking.discount_lkr > 0 && (

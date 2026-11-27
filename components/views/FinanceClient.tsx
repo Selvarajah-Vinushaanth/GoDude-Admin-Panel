@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { CreditCard, ArrowDownLeft, Percent, ShieldCheck } from 'lucide-react';
+import { CreditCard, ArrowDownLeft, Percent, ShieldCheck, Download } from 'lucide-react';
 import { DataTable, TableColumn } from '@/components/ui/DataTable';
 import { Drawer } from '@/components/ui/Drawer';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -295,20 +295,33 @@ export function FinanceClient() {
         dateFrom={dateFrom}
         dateTo={dateTo}
         extraControls={
-          <select
-            value={serviceFilter}
-            onChange={(e) => {
-              setServiceFilter(e.target.value);
-              setPage(1);
-            }}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white"
-          >
-            <option value="all">All Services</option>
-            <option value="Ride Booking">Ride Booking</option>
-            <option value="Flexible Ride">Flexible Ride</option>
-            <option value="Food Delivery">Food Delivery</option>
-            <option value="Parcel Delivery">Parcel Delivery</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={serviceFilter}
+              onChange={(e) => {
+                setServiceFilter(e.target.value);
+                setPage(1);
+              }}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 outline-none focus:border-blue-500 focus:bg-white"
+            >
+              <option value="all">All Services</option>
+              <option value="Ride Booking">Ride Booking</option>
+              <option value="Flexible Ride">Flexible Ride</option>
+              <option value="Food Delivery">Food Delivery</option>
+              <option value="Parcel Delivery">Parcel Delivery</option>
+            </select>
+            <a
+              href={`/api/rides/export?${new URLSearchParams({
+                ...(search.trim() ? { search: search.trim() } : {}),
+                ...(dateFrom ? { dateFrom } : {}),
+                ...(dateTo ? { dateTo } : {}),
+              }).toString()}`}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export Rides CSV
+            </a>
+          </div>
         }
         sort={sort}
         order={order}

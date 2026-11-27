@@ -34,6 +34,11 @@ interface ParcelCfg {
   savings_pct?: number;
 }
 
+interface RideCfg {
+  platform_commission_pct: number;
+  savings_pct: number;
+}
+
 interface AuditRow {
   id: string;
   action: string;
@@ -49,6 +54,7 @@ export function SettingsClient() {
   const [vehicles, setVehicles] = useState<VehicleRule[]>([]);
   const [delivery, setDelivery] = useState<DeliveryCfg | null>(null);
   const [parcel, setParcel] = useState<ParcelCfg | null>(null);
+  const [ride, setRide] = useState<RideCfg | null>(null);
   const [zones, setZones] = useState<
     Array<{ id: string; name: string; city: string; radius_km: number; base_fee_lkr: number | null; is_active: boolean }>
   >([]);
@@ -69,6 +75,7 @@ export function SettingsClient() {
         setVehicles(json.vehicles || []);
         setDelivery(json.deliveryConfig || null);
         setParcel(json.parcelConfig || null);
+        setRide(json.rideConfig || null);
         setZones(json.deliveryZones || []);
         setAuditLogs(json.auditLogs || []);
       })
@@ -98,6 +105,7 @@ export function SettingsClient() {
       setVehicles(json.vehicles || vehicles);
       setDelivery(json.deliveryConfig || delivery);
       setParcel(json.parcelConfig || parcel);
+      setRide(json.rideConfig || ride);
       setAuditLogs(json.auditLogs || auditLogs);
       pushToast('Configuration Saved', 'Live platform parameters updated.', 'success');
     } catch (err) {
@@ -223,6 +231,72 @@ export function SettingsClient() {
           ))}
         </div>
       </section>
+
+      {/* Ride Commission & Customer Savings Configuration */}
+      {ride && (
+        <section className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Car className="h-4 w-4 text-blue-600" />
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">
+                  Ride Commission &amp; Savings Rules
+                </h2>
+                <p className="text-[11px] text-slate-500">
+                  Applies to Point-to-Point, Return Trip, and Flexible Metered Ride bookings.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={savingKey === 'ride'}
+              onClick={() =>
+                savePatch('ride', {
+                  section: 'ride',
+                  platformCommissionPct: Number(ride.platform_commission_pct),
+                  savingsPct: Number(ride.savings_pct),
+                })
+              }
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              <Save className="h-3.5 w-3.5" />
+              {savingKey === 'ride' ? 'Saving...' : 'Save Ride Commission & Savings'}
+            </button>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-slate-500">
+                Ride Platform Commission (% of Trip Fee)
+              </span>
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="45"
+                value={Number(ride.platform_commission_pct ?? 15)}
+                onChange={(e) =>
+                  setRide({ ...ride, platform_commission_pct: Number(e.target.value) })
+                }
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold"
+              />
+            </label>
+            <label className="block">
+              <span className="text-slate-500">
+                Ride Customer Savings Reward (% of Trip Fare — Wallet Credit)
+              </span>
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="50"
+                value={Number(ride.savings_pct ?? 10)}
+                onChange={(e) => setRide({ ...ride, savings_pct: Number(e.target.value) })}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 font-semibold"
+              />
+            </label>
+          </div>
+        </section>
+      )}
 
       {/* Food Delivery & Parcel Configuration */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

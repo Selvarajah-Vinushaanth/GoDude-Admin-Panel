@@ -15,7 +15,13 @@ import { getOverviewStats } from '../lib/services/overview.service';
 import { getCustomerDetail, listCustomers } from '../lib/services/customers.service';
 import { getRiderDetail, listRiders } from '../lib/services/riders.service';
 import { listRestaurants } from '../lib/services/restaurants.service';
-import { listFoodOrders, listParcels, listRides } from '../lib/services/operations.service';
+import {
+  buildRidesAccountingCsv,
+  listFoodOrders,
+  listParcels,
+  listRides,
+  RIDE_ACCOUNTING_CSV_HEADERS,
+} from '../lib/services/operations.service';
 import { listTransactions } from '../lib/services/finance.service';
 import {
   getSettingsSnapshot,
@@ -223,6 +229,9 @@ test('Scenario A-E: database connectivity, dashboard KPIs, and cross-tab consist
 
   assert.ok(notifs.total >= 0);
   assert.ok(settings.vehicles.length >= 3);
+  assert.ok(settings.rideConfig, 'Settings snapshot must include rideConfig');
+  assert.ok(Number(settings.rideConfig.platform_commission_pct) >= 0);
+  assert.ok(Number(settings.rideConfig.savings_pct) >= 0);
 });
 
 test('ordinary customers/drivers cannot sign in as admin and invalid credentials fail', async () => {
@@ -238,4 +247,44 @@ test('ordinary customers/drivers cannot sign in as admin and invalid credentials
   const badLogin = await authenticateAdminLogin('admin@godude.lk', 'wrong-password');
   assert.equal(badLogin.ok, false);
   assert.equal(badLogin.status, 401);
+});
+
+test('Accounting CSV export generates exact template headers, Colombo timestamps, duration, and escaping', () => {
+  assert.equal(
+    RIDE_ACCOUNTING_CSV_HEADERS.join(','),
+    'Customer ID,Customer Name,Contact No,Vehile No,Ride Date,Ride Starting Time,Ending Time,Duration,Distance,Starting Place,Ending Place,Trip Fee,Commission'
+  );
+
+  const csv = buildRidesAccountingCsv([
+    {
+      id: 'RID-GD-1001',
+      customer_id: 'uuid-1',
+      customer_account_id: '00001',
+      customer_name: 'Kasun Perera',
+      customer_phone: '+94771234567',
+      plate_number: 'WP ABC-1234',
+      created_at: '2026-11-27T04:00:00.000Z',
+      started_at: '2026-11-27T04:05:10.000Z',
+      completed_at: '2026-11-27T04:23:55.000Z',
+      elapsed_seconds: 1125,
+      actual_distance_km: 6.45,
+      estimated_distance_km: 6.1,
+      pickup_address: 'Galle Road, Colombo 03',
+      destination_address: 'Lotus Tower, "Colombo 10"',
+      total_paid_lkr: 850,
+      platform_commission_lkr: 128,
+    },
+  ]);
+
+  const stripped = csv.replace(/^\uFEFF/, '').trim();
+  const lines = stripped.split('\r\n');
+  assert.equal(lines.length, 2);
+  assert.equal(
+    lines[0],
+    'Customer ID,Customer Name,Contact No,Vehile No,Ride Date,Ride Starting Time,Ending Time,Duration,Distance,Starting Place,Ending Place,Trip Fee,Commission'
+  );
+  assert.equal(
+    lines[1],
+    '00001,Kasun Perera,+94771234567,WP ABC-1234,2026-11-27,09:35:10,09:53:55,00:18:45,6.45,"Galle Road, Colombo 03","Lotus Tower, ""Colombo 10""",850,128'
+  );
 });

@@ -5,6 +5,7 @@ import {
   getSettingsSnapshot,
   updateDeliveryConfigAction,
   updateParcelConfigAction,
+  updateRideConfigAction,
   updateVehiclePricingAction,
 } from '@/lib/services/admin-comms.service';
 
@@ -35,6 +36,11 @@ const patchSchema = z.discriminatedUnion('section', [
     minDeliveryFeeLKR: z.number().int().min(50).max(5000).optional(),
     requirePickupOtp: z.boolean().optional(),
     requireDeliveryOtp: z.boolean().optional(),
+    savingsPct: z.number().min(0).max(50).optional(),
+  }),
+  z.object({
+    section: z.literal('ride'),
+    platformCommissionPct: z.number().min(0).max(45).optional(),
     savingsPct: z.number().min(0).max(50).optional(),
   }),
 ]);
@@ -73,6 +79,8 @@ export async function PATCH(req: NextRequest) {
       await updateVehiclePricingAction(auth.session, vehicleId, rest);
     } else if (parsed.data.section === 'delivery') {
       await updateDeliveryConfigAction(auth.session, parsed.data);
+    } else if (parsed.data.section === 'ride') {
+      await updateRideConfigAction(auth.session, parsed.data);
     } else {
       await updateParcelConfigAction(auth.session, parsed.data);
     }
